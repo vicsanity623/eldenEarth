@@ -19,36 +19,9 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.add("hidden"), ms);
   }
-  window.showGameToast = showToast;
 
   function openModal(id) { el(id).classList.remove("hidden"); }
   function closeModal(id) { el(id).classList.add("hidden"); }
-
-  window.showGameNotice = function (message, title = "Realm Notice") {
-    const modal = el("game-notice-modal");
-    if (!modal) return showToast(message);
-    el("game-notice-title").textContent = title;
-    el("game-notice-message").textContent = message;
-    modal.classList.remove("hidden");
-  };
-
-  window.showGameConfirm = function (message, onConfirm, title = "Confirm Action") {
-    const modal = el("game-confirm-modal");
-    if (!modal) return onConfirm();
-    el("game-confirm-title").textContent = title;
-    el("game-confirm-message").textContent = message;
-    modal.classList.remove("hidden");
-    const confirmBtn = el("game-confirm-ok");
-    const cancelBtn = el("game-confirm-cancel");
-    const finish = (confirmed) => {
-      modal.classList.add("hidden");
-      confirmBtn.onclick = null;
-      cancelBtn.onclick = null;
-      if (confirmed) onConfirm();
-    };
-    confirmBtn.onclick = () => finish(true);
-    cancelBtn.onclick = () => finish(false);
-  };
 
   let cachedCashWhole = null;
   let cachedCashDecimal = null;
@@ -1581,7 +1554,7 @@
     el("spin-btn").addEventListener("click", () => {
       const state = Store.get();
       if (state.player.id && state.player.id.startsWith("guest-")) {
-        showGameNotice("YOU ARE A GUEST IN THIS REALM. Sign in with Google to spin the wheel.");
+        alert("YOU ARE A GUEST IN THIS REALM. Sign in with Google to spin the wheel.");
         return;
       }
       const cost = CONFIG.SPIN_COST_DIAMONDS || 1;
@@ -1652,16 +1625,15 @@
     });
 
     el("reset-btn").addEventListener("click", () => {
-      showGameConfirm("This wipes all Elden Earth progress on this device. Continue?", () => {
+      if (confirm("This wipes all Elden Earth progress on this device. Continue?")) {
         Store.reset();
         location.reload();
-      }, "Reset Device Save Data");
+      }
     });
   }
 
   // ---------------- Boot ----------------
   document.addEventListener("DOMContentLoaded", () => {
-    el("game-notice-ok")?.addEventListener("click", () => el("game-notice-modal")?.classList.add("hidden"));
     Store.load();
     Auth.init(onSignedIn);
     el("locate-btn")?.addEventListener("click", startLocating);

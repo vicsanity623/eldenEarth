@@ -75,7 +75,7 @@ const CONFIG = {
   // --- Realm Citadels & Dyson Sphere Holds ---
   CITADEL_UNLOCK_BALANCE: 0.01,        // $0.01 threshold to unlock the Capsule
   CITADEL_GROWTH_MS: 30 * 60 * 1000,   // 30 mins growth timer
-  CITADEL_MIN_SPACING_METERS: 0,       // Legacy setting; nearby Citadels are allowed to overlap
+  CITADEL_MIN_SPACING_METERS: 75,      // Minimum 75m (~250 ft) spacing between Citadels (Prevents 3D collisions!)
   CITADEL_SIEGE_COST_DIAMONDS: 1,      // 1 Diamond to challenge an enemy Citadel
   CITADEL_CONQUEST_BOUNTY_EB: 5,       // +5 EB bonus for dethroning a defender
   CITADEL_EVOLUTION_MS: 10 * 60 * 1000, // 10 Minutes Evolution Timer

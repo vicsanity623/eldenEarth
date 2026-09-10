@@ -36,7 +36,7 @@ const Grid = (() => {
   function promptBuyTile(tx, ty) {
     const state = Store.get();
     if (state.player && state.player.id && state.player.id.startsWith("guest-")) {
-      showGameNotice("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
+      alert("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
       onBuyAttempt(false, null);
       return;
     }
@@ -45,7 +45,7 @@ const Grid = (() => {
 
     if (allPlots[tid]) {
       if (allPlots[tid].ownerId === state.player.id) openPlotModal(tid, allPlots[tid]);
-      else showGameNotice(`This tile is already claimed by ${allPlots[tid].ownerName || "another player"}!`);
+      else alert(`This tile is already claimed by ${allPlots[tid].ownerName || "another player"}!`);
       return;
     }
 
@@ -104,17 +104,7 @@ const Grid = (() => {
     const state = Store.get();
     const plot = state.plots[selectedPlotId];
     if (!plot || plot.ownerId !== state.player.id) return;
-    if (typeof showGameConfirm === "function") {
-      showGameConfirm("Relocate this plot? The tile will become unoccupied and the plot will return to your bag.", completeRelocation, "Relocate Plot");
-      return;
-    }
-    completeRelocation();
-  }
-
-  function completeRelocation() {
-    const state = Store.get();
-    const plot = state.plots[selectedPlotId];
-    if (!plot || plot.ownerId !== state.player.id) return;
+    if (!confirm("Relocate this plot? The tile will become unoccupied and the plot will return to your bag.")) return;
 
     addPlotToBag(state, plot.rarity);
     delete state.plots[selectedPlotId];
@@ -127,7 +117,7 @@ const Grid = (() => {
     document.getElementById("plot-modal")?.classList.add("hidden");
     selectedPlotId = null;
     render();
-    if (typeof window.showGameToast === "function") window.showGameToast(`Plot relocated. ${rarityInfo(plot.rarity).label} plot returned to your bag!`, 3500);
+    if (typeof showToast === "function") showToast(`Plot relocated. ${rarityInfo(plot.rarity).label} plot returned to your bag!`, 3500);
   }
 
   function openPlotBag() {
@@ -207,7 +197,7 @@ const Grid = (() => {
 
     const state = Store.get();
     if (state.player.id && state.player.id.startsWith("guest-")) {
-      showGameNotice("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
+      alert("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
       onBuyAttempt(false, null);
       return;
     }

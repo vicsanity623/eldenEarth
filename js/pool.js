@@ -123,8 +123,8 @@ const WeeklyPool = (() => {
     Store.save(true);
 
     document.getElementById("weekly-reward-modal")?.classList.add("hidden");
-    if (typeof window.showGameToast === "function") {
-      window.showGameToast(`👑 Claimed +$${pendingRewardAmount.toFixed(6)} from the Weekly Dividend Pool!`, 4000);
+    if (typeof showToast === "function") {
+      showToast(`👑 Claimed +$${pendingRewardAmount.toFixed(6)} from the Weekly Dividend Pool!`, 4000);
     }
     pendingRewardAmount = 0;
   }

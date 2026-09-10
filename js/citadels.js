@@ -84,18 +84,17 @@ const Citadels = (() => {
   function plantCapsule(tx, ty, lat, lon) {
     const state = Store.get();
     if (!state.capsule || !state.capsule.awarded || state.capsule.planted) {
-      showGameNotice("You have already planted your realm capsule!");
+      alert("You have already planted your realm capsule!");
       return false;
     }
 
     if (tx === undefined || ty === undefined) {
-      showGameNotice("Please select an unoccupied tile on the grid first!");
+      alert("Please select an unoccupied tile on the grid first!");
       return false;
     }
 
     const cid = id();
     const rarity = state.capsule.rarity || "common";
-    const wasRelocated = state.capsule.relocated === true || state.capsule.everPlanted === true;
     const now = Date.now();
     const growthFinish = now + (CONFIG.CITADEL_GROWTH_MS || 1800000);
     const ts = CONFIG.TILE_SIZE_METERS || 6.096;
@@ -108,6 +107,17 @@ const Citadels = (() => {
       tileX * ts + ts / 2,
       tileY * ts + ts / 2
     );
+
+    // 2. --- 75M TERRITORY BUFFER CHECK (Prevents 3D Marker Overlap Collisions) ---
+    const minSpacing = (typeof CONFIG !== "undefined" && CONFIG.CITADEL_MIN_SPACING_METERS) || 75;
+    for (const id in globalCitadels) {
+      const existing = globalCitadels[id];
+      const dist = Geo.haversine(center.lat, center.lon, existing.lat, existing.lon);
+      if (dist < minSpacing) {
+        alert(`🛡️ Stronghold Interference!\n\nCannot place a Citadel within ${minSpacing} meters of another Citadel.\n\n"${existing.creatorName}'s Hold" is too close (only ${Math.round(dist)}m away).\n\nPlease pick an unoccupied tile further down the street!`);
+        return false; // Blocks placement, keeps capsule safely in pocket!
+      }
+    }
 
     const citadelData = {
       id: cid,
@@ -131,8 +141,6 @@ const Citadels = (() => {
 
     state.capsule.planted = true;
     state.capsule.tileId = cid;
-    state.capsule.everPlanted = true;
-    delete state.capsule.relocated;
     globalCitadels[cid] = citadelData;
     Store.save(true);
 
@@ -141,14 +149,12 @@ const Citadels = (() => {
       db.collection("citadels").doc(cid).set(citadelData).catch(e => console.warn(e));
     }
 
-    if (!wasRelocated && typeof Feed !== "undefined") {
+    if (typeof Feed !== "undefined") {
       Feed.broadcast("land", { rarity: `${CONFIG.CITADEL_RARITIES[rarity].label} Citadel`, location: "the Realm 🌐" });
     }
 
     render();
-    if (typeof window.showGameToast === "function") {
-      window.showGameToast(`🔮 Citadel planted on Tile [${tileX}, ${tileY}]! Stronghold parcel activated!`, 3500);
-    }
+    alert(`🔮 Citadel planted on Tile [${tileX}, ${tileY}]! Stronghold parcel activated!`);
     return true;
   }
 
@@ -252,10 +258,10 @@ const Citadels = (() => {
       const rConfig = CONFIG.CITADEL_RARITIES[cit.rarity] || CONFIG.CITADEL_RARITIES.common;
 
       // 1. RECALCULATE TX / TY IF MISSING (Fixes 100% of all old already-placed Citadels!)
-      let tx = parseInt(cit.tx, 10);
-      let ty = parseInt(cit.ty, 10);
+      let tx = cit.tx;
+      let ty = cit.ty;
 
-      if (isNaN(tx) || isNaN(ty)) {
+      if (tx === undefined || ty === undefined || isNaN(tx) || isNaN(ty)) {
         const t = Geo.tileForLatLon(cit.lat, cit.lon, tileSize);
         tx = t.tx;
         ty = t.ty;
@@ -263,15 +269,11 @@ const Citadels = (() => {
         cit.ty = ty;
       }
 
-      // 2. Keep the persisted placement coordinate authoritative for the marker.
-      // Recomputing it from tile indices on every render can move legacy markers
-      // when their stored tile metadata and geographic coordinates differ.
-      const markerLat = Number(cit.lat);
-      const markerLon = Number(cit.lon);
-      const hasStoredCenter = Number.isFinite(markerLat) && Number.isFinite(markerLon);
-      const center = hasStoredCenter
-        ? { lat: markerLat, lon: markerLon }
-        : Geo.fromMercator(tx * tileSize + tileSize / 2, ty * tileSize + tileSize / 2);
+      // 2. Exact Mathematical Center of the 10x10ft tile
+      const center = Geo.fromMercator(
+        tx * tileSize + tileSize / 2,
+        ty * tileSize + tileSize / 2
+      );
       const trueLat = center.lat;
       const trueLon = center.lon;
 
@@ -300,13 +302,11 @@ const Citadels = (() => {
         geometry: { type: "Polygon", coordinates: [coords] }
       });
 
-      // 4. Mount an upright, screen-facing monument at its persisted ground coordinate.
-      // MapLibre owns geographic position; the HTML billboard does not counter-rotate with the camera.
+      // 4. Mount Upright 10X 3D Monument firmly at the exact tile center
       const el = createDysonSphereMarker(cit);
       const marker = new mapboxgl.Marker({
         element: el,
         anchor: "bottom",
-        offset: [0, 0],
         pitchAlignment: "viewport",
         rotationAlignment: "viewport",
       })
@@ -484,19 +484,9 @@ const Citadels = (() => {
     const myId = state?.player?.id;
     if (!cit || !state || cit.creatorId !== myId) return;
 
-    const finishRelocation = () => completeCitadelRelocation(cid);
-    if (typeof showGameConfirm === "function") {
-      showGameConfirm("Any accrued rewards will be recalled, the tile will become unoccupied, and your capsule will return to your pocket.", finishRelocation, "Relocate Citadel");
+    if (!confirm("Relocate this Citadel? Any accrued rewards will be recalled, the tile will become unoccupied, and your capsule will return to your pocket.")) {
       return;
     }
-    finishRelocation();
-  }
-
-  function completeCitadelRelocation(cid) {
-    const cit = globalCitadels[cid];
-    const state = Store.get();
-    const myId = state?.player?.id;
-    if (!cit || !state || cit.creatorId !== myId) return;
 
     const spoils = cit.defender?.id === myId ? calculateSpoils(cit) : { diamonds: 0, eb: 0 };
     state.diamonds = (Number(state.diamonds) || 0) + spoils.diamonds;
@@ -506,7 +496,6 @@ const Citadels = (() => {
     state.capsule.planted = false;
     state.capsule.tileId = null;
     state.capsule.rarity = state.capsule.rarity || cit.rarity || "common";
-    state.capsule.relocated = true;
     Store.save();
 
     delete globalCitadels[cid];
@@ -521,8 +510,8 @@ const Citadels = (() => {
     if (relocateWrap) relocateWrap.hidden = true;
     render();
 
-    if (typeof window.showGameToast === "function") {
-      window.showGameToast(`Citadel relocated. Capsule returned! +${spoils.diamonds} Diamonds & +${spoils.eb} EB`, 4000);
+    if (typeof showToast === "function") {
+      showToast(`Citadel relocated. Capsule returned! +${spoils.diamonds} Diamonds & +${spoils.eb} EB`, 4000);
     }
   }
 
@@ -543,7 +532,7 @@ const Citadels = (() => {
 
     document.getElementById("citadel-modal")?.classList.add("hidden");
     render();
-    if (typeof window.showGameToast === "function") window.showGameToast("🛡️ Garrisoned! Defending this Citadel!");
+    if (typeof showToast === "function") showToast("🛡️ Garrisoned! Defending this Citadel!");
   }
 
   function recallDefender(cid) {
@@ -563,8 +552,8 @@ const Citadels = (() => {
 
     document.getElementById("citadel-modal")?.classList.add("hidden");
     render();
-    if (typeof window.showGameToast === "function") {
-      window.showGameToast(`🏆 Defender Recalled! Banked +${spoils.diamonds} Diamonds & +${spoils.eb} EB!`, 3500);
+    if (typeof showToast === "function") {
+      showToast(`🏆 Defender Recalled! Banked +${spoils.diamonds} Diamonds & +${spoils.eb} EB!`, 3500);
     }
   }
   
@@ -610,13 +599,13 @@ const Citadels = (() => {
     // Verify balance
     if (paymentType === "eb") {
       if ((Number(state.eb) || 0) < costs.eb) {
-        showGameNotice(`You need ${costs.eb} EB to forge this upgrade!`);
+        alert(`You need ${costs.eb} EB to forge this upgrade!`);
         return;
       }
       state.eb -= costs.eb;
     } else {
       if ((Number(state.diamonds) || 0) < costs.diamonds) {
-        showGameNotice(`You need ${costs.diamonds} Diamonds to forge this upgrade!`);
+        alert(`You need ${costs.diamonds} Diamonds to forge this upgrade!`);
         return;
       }
       state.diamonds -= costs.diamonds;
@@ -648,8 +637,8 @@ const Citadels = (() => {
     document.getElementById("citadel-upgrade-modal")?.classList.add("hidden");
     render();
 
-    if (typeof window.showGameToast === "function") {
-      window.showGameToast(`⚡ Citadel Evolution started! 10-minute transformation underway!`, 4000);
+    if (typeof showToast === "function") {
+      showToast(`⚡ Citadel Evolution started! 10-minute transformation underway!`, 4000);
     }
   }
 
@@ -660,7 +649,7 @@ const Citadels = (() => {
 
     // Rule 1: Must have unlocked and planted your own Capsule first!
     if (!state.capsule || !state.capsule.planted) {
-      showGameNotice("🛡️ You must reach $0.01 balance and plant your own Realm Capsule before you can launch Sieges against other players!");
+      alert("🛡️ You must reach $0.01 balance and plant your own Realm Capsule before you can launch Sieges against other players!");
       return;
     }
 
@@ -669,19 +658,19 @@ const Citadels = (() => {
     if (myCitadel && targetCit) {
       const distToMyHold = Geo.haversine(myCitadel.lat, myCitadel.lon, targetCit.lat, targetCit.lon);
       if (distToMyHold < 250) {
-        showGameNotice(`🛡️ Peace Treaty Active: You cannot siege holds within 250 meters of your own Citadel (currently ${Math.round(distToMyHold)}m away). Travel further to conquer foreign lands!`);
+        alert(`🛡️ Peace Treaty Active: You cannot siege holds within 250 meters of your own Citadel (currently ${Math.round(distToMyHold)}m away). Travel further to conquer foreign lands!`);
         return;
       }
     }
 
     // Anti-Exploit Security Check: Block self-sieges completely!
     if (targetCit && targetCit.defender && targetCit.defender.id === state.player?.id) {
-      showGameNotice("🛡️ You already hold this Citadel! You cannot siege yourself.");
+      alert("🛡️ You already hold this Citadel! You cannot siege yourself.");
       return;
     }
     
     if ((Number(state.diamonds) || 0) < CONFIG.CITADEL_SIEGE_COST_DIAMONDS) {
-      showGameNotice("You need at least 1 Diamond to initiate a Siege!");
+      alert("You need at least 1 Diamond to initiate a Siege!");
       return;
     }
 
@@ -730,13 +719,13 @@ const Citadels = (() => {
     let dmg = 0;
     if (isCritical) {
       dmg = 45 + Math.floor(Math.random() * 10);
-      if (typeof window.showGameToast === "function") window.showGameToast("💥 CRITICAL HIT! -50 Shield HP!");
+      if (typeof showToast === "function") showToast("💥 CRITICAL HIT! -50 Shield HP!");
     } else if (isHit) {
       dmg = 25 + Math.floor(Math.random() * 8);
-      if (typeof window.showGameToast === "function") window.showGameToast("⚔️ Clean Strike! -25 Shield HP!");
+      if (typeof showToast === "function") showToast("⚔️ Clean Strike! -25 Shield HP!");
     } else {
       dmg = 10;
-      if (typeof window.showGameToast === "function") window.showGameToast("🛡️ Glancing Blow! -10 HP!");
+      if (typeof showToast === "function") showToast("🛡️ Glancing Blow! -10 HP!");
     }
 
     combatShieldHP -= dmg;
@@ -780,8 +769,8 @@ const Citadels = (() => {
     }
 
     render();
-    if (typeof window.showGameToast === "function") {
-      window.showGameToast("🏆 CITADEL BREACHED! You are the new Reigning Defender! (+5 EB Bounty)", 4000);
+    if (typeof showToast === "function") {
+      showToast("🏆 CITADEL BREACHED! You are the new Reigning Defender! (+5 EB Bounty)", 4000);
     }
   }
 
@@ -816,8 +805,8 @@ const Citadels = (() => {
 
     document.getElementById("plant-capsule-btn")?.addEventListener("click", () => {
       document.getElementById("capsule-reward-modal")?.classList.add("hidden");
-      if (typeof window.showGameToast === "function") {
-        window.showGameToast("📍 Enter BUY LAND mode & tap an unowned tile to plant your Citadel!", 3500);
+      if (typeof showToast === "function") {
+        showToast("📍 Enter BUY LAND mode & tap an unowned tile to plant your Citadel!", 3500);
       }
     });
 

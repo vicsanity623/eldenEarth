@@ -91,13 +91,13 @@ const Chat = (() => {
     const now = Date.now();
     if (now - lastSentTime < COOLDOWN_MS) {
       const waitSec = Math.ceil((COOLDOWN_MS - (now - lastSentTime)) / 1000);
-      showGameNotice(`⏳ Please wait ${waitSec}s before sending another message.`);
+      alert(`⏳ Please wait ${waitSec}s before sending another message.`);
       return;
     }
 
     const db = Store.getDb();
     if (!db) {
-      showGameNotice("Database unavailable. Please check your connection.");
+      alert("Database unavailable. Please check your connection.");
       return;
     }
 

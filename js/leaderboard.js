@@ -445,8 +445,8 @@ const Leaderboard = (() => {
         state.eb = (Number(state.eb) || 0) + p.amount;
         state.totalDividends = (Number(state.totalDividends) || 0) + p.amount;
         Store.save();
-        if (typeof window.showGameToast === "function") {
-          window.showGameToast(`👑 Royalty Payout! +${p.amount} EB (${p.titles.join(" + ")})!`);
+        if (typeof showToast === "function") {
+          showToast(`👑 Royalty Payout! +${p.amount} EB (${p.titles.join(" + ")})!`);
         }
       } else if (db) {
         try {

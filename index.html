@@ -89,7 +89,7 @@
     <div class="hero-balance-card" id="hero-balance-card">
       <div class="hero-top-line">
         <div class="hero-brand-title">
-          <span class="hero-brand-gem">◆</span> ELDEN EARTH <span class="hero-version-tag">v0.0.0.1</span>
+          <span class="hero-brand-gem">◆</span> ELDEN EARTH <span class="hero-version-tag">v0.0.0.05</span>
         </div>
         <div id="boost-timer-badge" class="boost-timer-badge hidden">⚡ 30X BOOST <span id="boost-countdown">00:00:00</span></div>
       </div>
@@ -132,27 +132,6 @@
 
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
-
-  <div id="game-notice-modal" class="modal hidden">
-    <div class="modal-card game-notice-card">
-      <div class="game-notice-icon" id="game-notice-icon">◆</div>
-      <h2 id="game-notice-title">Realm Notice</h2>
-      <p class="modal-sub" id="game-notice-message"></p>
-      <button id="game-notice-ok" class="btn btn-primary">OK</button>
-    </div>
-  </div>
-
-  <div id="game-confirm-modal" class="modal hidden">
-    <div class="modal-card game-notice-card">
-      <div class="game-notice-icon">⚔</div>
-      <h2 id="game-confirm-title">Confirm Action</h2>
-      <p class="modal-sub" id="game-confirm-message"></p>
-      <div class="modal-actions">
-        <button id="game-confirm-cancel" class="btn btn-secondary">Cancel</button>
-        <button id="game-confirm-ok" class="btn btn-primary">Confirm</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Weekly Realm Treasury Pool HUD Button (Floats above +2 EB button) -->
   <button id="weekly-pool-hud-btn" class="weekly-pool-btn" aria-label="Weekly Dividend Pool">
@@ -647,7 +626,7 @@
 
     <!-- Chat Input Footer -->
     <div class="chat-footer">
-      <textarea id="chat-input" class="chat-input" name="realm-chat-message" placeholder="Say something to the realm..." maxlength="120" rows="1" autocomplete="off" autocapitalize="sentences" autocorrect="on" spellcheck="true" inputmode="text" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" aria-label="Realm chat message"></textarea>
+      <input type="text" id="chat-input" class="chat-input" name="realm-chat-message" placeholder="Say something to the realm..." maxlength="120" autocomplete="new-password" autocapitalize="sentences" autocorrect="on" spellcheck="true" inputmode="text" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" />
       <button id="chat-send-btn" class="chat-send-btn">➤</button>
     </div>
 

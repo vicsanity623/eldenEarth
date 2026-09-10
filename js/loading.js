@@ -189,17 +189,13 @@ const Bootloader = (() => {
       // 4. Map Engine (75%)
       await step(100, 75, "Mounting 3D Vector engine & WebGL layers...");
 
-      // 5. Global Plots Preload with a safety timeout (prevents hanging at 98%)
+      // 5. Global Plots Preload with 2.5s Safety Timeout (Prevents hanging at 98%)
       setProgress(90, "Pre-fetching claimed world plots from Firestore...");
       const db = Store.getDb();
       if (db) {
         try {
           const fetchPromise = db.collection("plots").get();
-          const timeoutPromise = new Promise((_, reject) => {
-            const timeoutError = new Error("Timeout");
-            timeoutError.code = "boot-preload-timeout";
-            setTimeout(() => reject(timeoutError), 2500);
-          });
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2500));
 
           const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
           const state = Store.get();
@@ -221,11 +217,7 @@ const Bootloader = (() => {
           });
           Store.save();
         } catch (e) {
-          if (e?.code === "boot-preload-timeout") {
-            console.info("[Bootloader] Global plot preload deferred; continuing startup.");
-          } else {
-            console.warn("[Bootloader] Global plot preload unavailable; continuing startup:", e);
-          }
+          console.warn("[Bootloader] Firestore fast-forwarded (offline/timeout):", e);
         }
       }
 
