@@ -78,19 +78,11 @@ const Geo = (() => {
     return EARTH_RADIUS_METERS * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
   }
 
-  // 3-Tier Proximity Engine
-  function randomPointInRadius(lat, lon, maxRadiusM = 1000) {
-    const roll = Math.random();
-    let r;
-
-    if (roll < 0.40) {
-      r = 20 + Math.random() * 65; // 20m to 85m
-    } else if (roll < 0.75) {
-      r = 85 + Math.random() * 265; // 85m to 350m
-    } else {
-      const outerLimit = Math.max(350, maxRadiusM);
-      r = 350 + Math.random() * (outerLimit - 350); // 350m to 1000m
-    }
+  // Generate a point in an annulus so diamonds never spawn inside reach.
+  function randomPointInRadius(lat, lon, maxRadiusM = 1000, minRadiusM = 0) {
+    const innerLimit = Math.max(0, Math.min(minRadiusM, maxRadiusM));
+    const outerLimit = Math.max(innerLimit, maxRadiusM);
+    const r = innerLimit + Math.random() * (outerLimit - innerLimit);
 
     const theta = Math.random() * 6.283185307179586; // 2 * PI
     const cosLat = Math.cos(lat * DEG2RAD);

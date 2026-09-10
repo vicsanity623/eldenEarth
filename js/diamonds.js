@@ -221,7 +221,13 @@ const Diamonds = (() => {
     pruneExpired();
 
     const now = Date.now();
-    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 35000;
+    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 12 * 60 * 1000;
+
+    // Do not accumulate diamonds around a player who has stopped moving.
+    if (state.lastDiamondMovementAt &&
+        now - state.lastDiamondMovementAt >= (CONFIG.DIAMOND_IDLE_TIMEOUT_MS || 60 * 60 * 1000)) {
+      return;
+    }
 
     // Cooldown gate: Prevent force-close reload exploit
     if (state.lastDiamondSpawn && (now - state.lastDiamondSpawn < spawnInterval)) {
@@ -231,7 +237,12 @@ const Diamonds = (() => {
     const count = Object.keys(state.liveDiamonds).length;
     if (count >= CONFIG.DIAMOND_MAX_ACTIVE) return;
 
-    const p = Geo.randomPointInRadius(playerPos.lat, playerPos.lon, CONFIG.DIAMOND_SPAWN_RADIUS_METERS);
+    const p = Geo.randomPointInRadius(
+      playerPos.lat,
+      playerPos.lon,
+      CONFIG.DIAMOND_SPAWN_RADIUS_METERS,
+      CONFIG.DIAMOND_COLLECT_RADIUS_METERS
+    );
     state.liveDiamonds[id()] = { lat: p.lat, lon: p.lon, spawnedAt: now };
     state.lastDiamondSpawn = now;
     Store.save();
@@ -247,7 +258,7 @@ const Diamonds = (() => {
 
     // Regular spawn ticker
     if (spawnTimer) clearInterval(spawnTimer);
-    spawnTimer = setInterval(trySpawn, CONFIG.DIAMOND_SPAWN_CHECK_MS || 35000);
+    spawnTimer = setInterval(trySpawn, CONFIG.DIAMOND_SPAWN_CHECK_MS || 12 * 60 * 1000);
   }
 
   let lastPosUpdate = 0;
@@ -256,6 +267,17 @@ const Diamonds = (() => {
   function setPlayerPosition(lat, lon) {
     const now = Date.now();
     playerPos = { lat, lon };
+
+    const storedPosition = Store.get().lastDiamondPlayerPosition;
+    const movedDistance = storedPosition
+      ? Geo.haversine(storedPosition.lat, storedPosition.lon, lat, lon)
+      : Infinity;
+    if (!storedPosition || movedDistance >= (CONFIG.DIAMOND_MOVEMENT_THRESHOLD_METERS || 10)) {
+      const state = Store.get();
+      state.lastDiamondMovementAt = now;
+      state.lastDiamondPlayerPosition = { lat, lon };
+      Store.save();
+    }
 
     // Throttle checks: Only re-render if moved > 2 meters or 3 seconds elapsed
     const distMoved = lastRenderPos ? Geo.haversine(lastRenderPos.lat, lastRenderPos.lon, lat, lon) : 999;

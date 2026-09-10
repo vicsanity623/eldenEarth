@@ -34,6 +34,8 @@ const Store = (() => {
       liveDiamonds: {},
       collectedDiamondIds: [],
       lastDiamondSpawn: 0,
+      lastDiamondMovementAt: 0,
+      lastDiamondPlayerPosition: null,
       boostExpiry: 0,
       boostMultiplier: 30,
       extractor: { built: false, level: 1, lastHarvest: Date.now(), stored: 0 },
