@@ -3933,7 +3933,6 @@ button[aria-label="Close ad"],
 .multiplier-btn.event-50x .mult-sub {
   color: #f0d38a !important;
 }
-.screen{
   display:flex; align-items:center; justify-content:center;
   background:
     radial-gradient(1200px 800px at 50% -10%, #1c2c42 0%, transparent 60%),

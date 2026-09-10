@@ -95,6 +95,7 @@ const Citadels = (() => {
 
     const cid = id();
     const rarity = state.capsule.rarity || "common";
+    const wasRelocated = state.capsule.relocated === true;
     const now = Date.now();
     const growthFinish = now + (CONFIG.CITADEL_GROWTH_MS || 1800000);
     const ts = CONFIG.TILE_SIZE_METERS || 6.096;
@@ -107,17 +108,6 @@ const Citadels = (() => {
       tileX * ts + ts / 2,
       tileY * ts + ts / 2
     );
-
-    // 2. --- 75M TERRITORY BUFFER CHECK (Prevents 3D Marker Overlap Collisions) ---
-    const minSpacing = (typeof CONFIG !== "undefined" && CONFIG.CITADEL_MIN_SPACING_METERS) || 75;
-    for (const id in globalCitadels) {
-      const existing = globalCitadels[id];
-      const dist = Geo.haversine(center.lat, center.lon, existing.lat, existing.lon);
-      if (dist < minSpacing) {
-        alert(`🛡️ Stronghold Interference!\n\nCannot place a Citadel within ${minSpacing} meters of another Citadel.\n\n"${existing.creatorName}'s Hold" is too close (only ${Math.round(dist)}m away).\n\nPlease pick an unoccupied tile further down the street!`);
-        return false; // Blocks placement, keeps capsule safely in pocket!
-      }
-    }
 
     const citadelData = {
       id: cid,
@@ -141,6 +131,7 @@ const Citadels = (() => {
 
     state.capsule.planted = true;
     state.capsule.tileId = cid;
+    delete state.capsule.relocated;
     globalCitadels[cid] = citadelData;
     Store.save(true);
 
@@ -149,7 +140,7 @@ const Citadels = (() => {
       db.collection("citadels").doc(cid).set(citadelData).catch(e => console.warn(e));
     }
 
-    if (typeof Feed !== "undefined") {
+    if (!wasRelocated && typeof Feed !== "undefined") {
       Feed.broadcast("land", { rarity: `${CONFIG.CITADEL_RARITIES[rarity].label} Citadel`, location: "the Realm 🌐" });
     }
 
@@ -258,10 +249,10 @@ const Citadels = (() => {
       const rConfig = CONFIG.CITADEL_RARITIES[cit.rarity] || CONFIG.CITADEL_RARITIES.common;
 
       // 1. RECALCULATE TX / TY IF MISSING (Fixes 100% of all old already-placed Citadels!)
-      let tx = cit.tx;
-      let ty = cit.ty;
+      let tx = parseInt(cit.tx, 10);
+      let ty = parseInt(cit.ty, 10);
 
-      if (tx === undefined || ty === undefined || isNaN(tx) || isNaN(ty)) {
+      if (isNaN(tx) || isNaN(ty)) {
         const t = Geo.tileForLatLon(cit.lat, cit.lon, tileSize);
         tx = t.tx;
         ty = t.ty;
@@ -307,6 +298,7 @@ const Citadels = (() => {
       const marker = new mapboxgl.Marker({
         element: el,
         anchor: "bottom",
+        offset: [0, 0],
         pitchAlignment: "viewport",
         rotationAlignment: "viewport",
       })
@@ -496,6 +488,7 @@ const Citadels = (() => {
     state.capsule.planted = false;
     state.capsule.tileId = null;
     state.capsule.rarity = state.capsule.rarity || cit.rarity || "common";
+    state.capsule.relocated = true;
     Store.save();
 
     delete globalCitadels[cid];
