@@ -36,7 +36,7 @@ const Grid = (() => {
   function promptBuyTile(tx, ty) {
     const state = Store.get();
     if (state.player && state.player.id && state.player.id.startsWith("guest-")) {
-      alert("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
+      showToast("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
       onBuyAttempt(false, null);
       return;
     }
@@ -45,7 +45,7 @@ const Grid = (() => {
 
     if (allPlots[tid]) {
       if (allPlots[tid].ownerId === state.player.id) openPlotModal(tid, allPlots[tid]);
-      else alert(`This tile is already claimed by ${allPlots[tid].ownerName || "another player"}!`);
+      else showToast(`This tile is already claimed by ${allPlots[tid].ownerName || "another player"}!`);
       return;
     }
 
@@ -197,7 +197,7 @@ const Grid = (() => {
 
     const state = Store.get();
     if (state.player.id && state.player.id.startsWith("guest-")) {
-      alert("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
+      showToast("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
       onBuyAttempt(false, null);
       return;
     }

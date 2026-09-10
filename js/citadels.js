@@ -84,12 +84,12 @@ const Citadels = (() => {
   function plantCapsule(tx, ty, lat, lon) {
     const state = Store.get();
     if (!state.capsule || !state.capsule.awarded || state.capsule.planted) {
-      alert("You have already planted your realm capsule!");
+      showToast("You have already planted your realm capsule!");
       return false;
     }
 
     if (tx === undefined || ty === undefined) {
-      alert("Please select an unoccupied tile on the grid first!");
+      showToast("Please select an unoccupied tile on the grid first!");
       return false;
     }
 
@@ -145,7 +145,7 @@ const Citadels = (() => {
     }
 
     render();
-    alert(`🔮 Citadel planted on Tile [${tileX}, ${tileY}]! Stronghold parcel activated!`);
+    showToast(`🔮 Citadel planted on Tile [${tileX}, ${tileY}]! Stronghold parcel activated!`);
     return true;
   }
 
@@ -592,13 +592,13 @@ const Citadels = (() => {
     // Verify balance
     if (paymentType === "eb") {
       if ((Number(state.eb) || 0) < costs.eb) {
-        alert(`You need ${costs.eb} EB to forge this upgrade!`);
+        showToast(`You need ${costs.eb} EB to forge this upgrade!`);
         return;
       }
       state.eb -= costs.eb;
     } else {
       if ((Number(state.diamonds) || 0) < costs.diamonds) {
-        alert(`You need ${costs.diamonds} Diamonds to forge this upgrade!`);
+        showToast(`You need ${costs.diamonds} Diamonds to forge this upgrade!`);
         return;
       }
       state.diamonds -= costs.diamonds;
@@ -642,7 +642,7 @@ const Citadels = (() => {
 
     // Rule 1: Must have unlocked and planted your own Capsule first!
     if (!state.capsule || !state.capsule.planted) {
-      alert("🛡️ You must reach $0.01 balance and plant your own Realm Capsule before you can launch Sieges against other players!");
+      showToast("🛡️ You must reach $0.01 balance and plant your own Realm Capsule before you can launch Sieges against other players!");
       return;
     }
 
@@ -651,19 +651,19 @@ const Citadels = (() => {
     if (myCitadel && targetCit) {
       const distToMyHold = Geo.haversine(myCitadel.lat, myCitadel.lon, targetCit.lat, targetCit.lon);
       if (distToMyHold < 250) {
-        alert(`🛡️ Peace Treaty Active: You cannot siege holds within 250 meters of your own Citadel (currently ${Math.round(distToMyHold)}m away). Travel further to conquer foreign lands!`);
+        showToast(`🛡️ Peace Treaty Active: You cannot siege holds within 250 meters of your own Citadel (currently ${Math.round(distToMyHold)}m away). Travel further to conquer foreign lands!`);
         return;
       }
     }
 
     // Anti-Exploit Security Check: Block self-sieges completely!
     if (targetCit && targetCit.defender && targetCit.defender.id === state.player?.id) {
-      alert("🛡️ You already hold this Citadel! You cannot siege yourself.");
+      showToast("🛡️ You already hold this Citadel! You cannot siege yourself.");
       return;
     }
     
     if ((Number(state.diamonds) || 0) < CONFIG.CITADEL_SIEGE_COST_DIAMONDS) {
-      alert("You need at least 1 Diamond to initiate a Siege!");
+      showToast("You need at least 1 Diamond to initiate a Siege!");
       return;
     }
 
