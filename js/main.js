@@ -462,9 +462,9 @@
       container: "map",
       style: mapStyle,
       center: [currentPos.lon, currentPos.lat],
-      zoom: 18.5,
-      minZoom: 15.2,     // 1 mile max zoom-out
-      maxZoom: 19.6,     // Street-level max zoom-in
+      zoom: 18.0,
+      minZoom: 17.8,     // 1 mile max zoom-out
+      maxZoom: 19.2,     // Street-level max zoom-in
       pitch: 60,         // Default 60° angle
       minPitch: 0,       // Allows flat 0° top-down view
       maxPitch: 70,      // Allows cinematic 70° low angle
@@ -1373,7 +1373,7 @@
       scheduleBoost();
     }
 
-    // --- Smooth BUY LAND 2D Camera Transition ---
+    // --- Smooth BUY LAND 2D Camera Transition (Zero Black Flash) ---
     const buyLandBtn = el("buy-land-mode-btn");
     const exitBuyBtn = el("exit-buy-mode-btn");
     const buyBanner = el("buy-mode-banner");
@@ -1383,28 +1383,42 @@
       buyBanner?.classList.remove("hidden");
       Grid.setBuyMode(true, currentPos);
 
-      // Smooth cinematic swoosh to top-down 2D
+      // 1. Lock camera strictly to 2D Top-Down View (minPitch = 0, maxPitch = 0)
+      map.setMinPitch(0);
+      map.setMaxPitch(0); // Physically impossible to tilt into 3D!
+
+      // 2. Tight 75-Yard Framing
+      map.setMinZoom(18.2);
+      map.setMaxZoom(20.0);
+
       map.flyTo({
         center: [currentPos.lon, currentPos.lat],
-        pitch: 0,       // Flat 2D top-down view
-        bearing: 0,     // Aligns to North
+        pitch: 0,
+        bearing: 0,
         zoom: 19.2,
-        duration: 1000,
+        duration: 800,
         essential: true,
       });
     }
 
     function exitBuyLandMode() {
-      if (!map || !currentPos) return;
       buyBanner?.classList.add("hidden");
       Grid.setBuyMode(false);
 
-      // Smooth return to 60° 3D Isometric View
+      // 1. Restore normal 3D tilt limits (Allows 0° to 70° cinematic tilt)
+      map.setMinPitch(0);
+      map.setMaxPitch(70);
+
+      // 2. Restore normal 100-yard neighborhood zoom limits
+      map.setMinZoom(18.2);
+      map.setMaxZoom(20.0);
+
+      // 3. Smoothly tilt back to 58° 3D perspective
       map.flyTo({
         center: [currentPos.lon, currentPos.lat],
-        pitch: 60,      // 60° 3D Isometric View
+        pitch: 60,
         zoom: 18.5,
-        duration: 1000,
+        duration: 800,
         essential: true,
       });
     }
@@ -1420,7 +1434,7 @@
           bearing: 0,      // Snaps camera back to True North
           pitch: 60,       // Resets to 3D Isometric View
           zoom: 18.5,      // Returns to default sweetspot zoom
-          duration: 900,
+          duration: 750,
           essential: true,
         });
       }

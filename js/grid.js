@@ -35,6 +35,17 @@ const Grid = (() => {
 
   function promptBuyTile(tx, ty) {
     const state = Store.get();
+    const ts = CONFIG.TILE_SIZE_METERS || 6.096;
+    const radiusM = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
+
+    if (playerCoords && playerCoords.lat) {
+      const bounds = Geo.tileBounds(tx, ty, ts);
+      const cLat = (bounds[0][0] + bounds[2][0]) / 2;
+      const cLon = (bounds[0][1] + bounds[2][1]) / 2;
+      if (Geo.haversine(playerCoords.lat, playerCoords.lon, cLat, cLon) > radiusM) {
+        return;
+      }
+    }
     if (state.player && state.player.id && state.player.id.startsWith("guest-")) {
       showToast("YOU ARE A GUEST IN THIS REALM. Sign in with Google to buy plots.");
       onBuyAttempt(false, null);
@@ -633,7 +644,21 @@ const Grid = (() => {
     map.on("click", (e) => {
       if (!isBuyMode) return; // Only allow buying in Buy Land mode
       const { lng, lat } = e.lngLat;
-      const t = Geo.tileForLatLon(lat, lng, CONFIG.TILE_SIZE_METERS);
+      const ts = CONFIG.TILE_SIZE_METERS || 6.096;
+      const radiusM = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
+
+      // Strict Reach Radius Guard: Block any tile clicked outside the circle!
+      if (playerCoords && playerCoords.lat) {
+        const dist = Geo.haversine(playerCoords.lat, playerCoords.lon, lat, lng);
+        if (dist > radiusM) {
+          if (typeof showToast === "function") {
+            showToast("🚶 Walk closer! That tile is outside your reach circle.", 2500);
+          }
+          return; // Block click!
+        }
+      }
+
+      const t = Geo.tileForLatLon(lat, lng, ts);
       promptBuyTile(t.tx, t.ty);
     });
 
