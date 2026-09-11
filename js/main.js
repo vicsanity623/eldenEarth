@@ -171,6 +171,11 @@
     if (el("count-rare")) el("count-rare").textContent = counts.rare;
     if (el("count-epic")) el("count-epic").textContent = counts.epic;
     if (el("count-legendary")) el("count-legendary").textContent = counts.legendary;
+
+    CONFIG.PLOT_RARITIES.forEach(rarity => {
+      if (el(`weight-${rarity.key}`)) el(`weight-${rarity.key}`).textContent = rarity.weight;
+      if (el(`rate-${rarity.key}`)) el(`rate-${rarity.key}`).textContent = rarity.rate.toFixed(18);
+    });
   }
   
   async function updatePlayerInfoModal(targetPlayerData = null) {
