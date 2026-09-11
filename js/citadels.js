@@ -16,6 +16,7 @@ const Citadels = (() => {
   let needleDirection = 1;
   let needleAnimId = null;
   let isStriking = false;
+  const showToast = (msg, time = 3500) => (typeof window !== "undefined" && window.showToast) ? window.showToast(msg, time) : alert(msg);
 
   function id() {
     return "citadel_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -439,24 +440,29 @@ const Citadels = (() => {
       recallBtn.addEventListener("click", () => recallDefender(cid));
       actionsWrap.appendChild(recallBtn);
 
-      if (cit.rarity !== "legendary" && !cit.isEvolving) {
+      const currentTier = (cit.rarity?.key || cit.rarity || "common").toLowerCase();
+      if (currentTier !== "legendary" && !cit.isEvolving) {
         const upgradeBtn = document.createElement("button");
         upgradeBtn.className = "btn btn-citadel-upgrade";
-        const nextInfo = CONFIG.CITADEL_UPGRADE_COSTS[cit.rarity];
-        upgradeBtn.innerHTML = `⚡ Upgrade Hold to ${nextInfo ? nextInfo.nextLabel : "Next Tier"}`;
+        const costsMap = CONFIG.CITADEL_UPGRADE_COSTS || {};
+        const nextInfo = costsMap[currentTier] || { nextLabel: "Rare Hold" };
+        upgradeBtn.innerHTML = `⚡ Upgrade Hold to ${nextInfo.nextLabel}`;
         upgradeBtn.addEventListener("click", () => openUpgradeModal(cid));
         actionsWrap.appendChild(upgradeBtn);
       }
     } 
-    // 2. UNCLAIMED HOLD VIEW: Allow Stationing
+    // 2. UNCLAIMED HOLD VIEW: Allow Stationing (Creators can ALWAYS station!)
     else if (!def || !def.id) {
+      const isCreator = (cit.creatorId === myId);
+      const canStation = isNearby || isCreator;
+
       const stationBtn = document.createElement("button");
       stationBtn.className = "btn btn-primary";
-      stationBtn.textContent = isNearby ? "Station My Avatar (Defend Hold)" : "Too Far to Station (Walk Closer)";
-      stationBtn.disabled = !isNearby;
+      stationBtn.textContent = canStation ? "Station My Avatar (Defend Hold)" : "Too Far to Station (Walk Closer)";
+      stationBtn.disabled = !canStation;
       stationBtn.addEventListener("click", () => stationDefender(cid));
       actionsWrap.appendChild(stationBtn);
-    } 
+    }
     // 3. ENEMY DEFENDER VIEW ONLY: Allow Siege (Only when someone else is defending!)
     else if (def.id !== myId) {
       const siegeBtn = document.createElement("button");
@@ -558,11 +564,17 @@ const Citadels = (() => {
     if (!cit || cit.rarity === "legendary") return;
     upgradingCitadelId = cid;
 
-    const costs = CONFIG.CITADEL_UPGRADE_COSTS[cit.rarity];
+    const currentTier = (cit.rarity?.key || cit.rarity || "common").toLowerCase();
+    const fallbackCosts = {
+      common: { next: "rare", eb: 50, diamonds: 75, nextLabel: "Rare Hold", nextColor: "#4fd6c4" },
+      rare:   { next: "epic", eb: 100, diamonds: 125, nextLabel: "Epic Hold", nextColor: "#a86ee0" },
+      epic:   { next: "legendary", eb: 300, diamonds: 400, nextLabel: "Legendary Hold", nextColor: "#f0d38a" },
+    };
+    const costs = (CONFIG.CITADEL_UPGRADE_COSTS && CONFIG.CITADEL_UPGRADE_COSTS[currentTier]) || fallbackCosts[currentTier];
     if (!costs) return;
 
-    const currentConf = CONFIG.CITADEL_RARITIES[cit.rarity];
-    const nextConf = CONFIG.CITADEL_RARITIES[costs.next];
+    const currentConf = (CONFIG.CITADEL_RARITIES && CONFIG.CITADEL_RARITIES[currentTier]) || { label: "Common Hold", color: "#8fa3b8", diamondHours: 3 };
+    const nextConf = (CONFIG.CITADEL_RARITIES && CONFIG.CITADEL_RARITIES[costs.next]) || { label: costs.nextLabel, color: costs.nextColor, diamondHours: 2 };
 
     document.getElementById("forge-current-tier").textContent = currentConf.label;
     document.getElementById("forge-current-tier").style.color = currentConf.color;
@@ -642,7 +654,7 @@ const Citadels = (() => {
 
     // Rule 1: Must have unlocked and planted your own Capsule first!
     if (!state.capsule || !state.capsule.planted) {
-      showToast("🛡️ You must reach $0.01 balance and plant your own Realm Capsule before you can launch Sieges against other players!");
+      (window.showToast || alert)("🛡️ You must reach $0.01 balance and plant your own Realm Capsule before you can launch Sieges against other players!");
       return;
     }
 
@@ -651,19 +663,19 @@ const Citadels = (() => {
     if (myCitadel && targetCit) {
       const distToMyHold = Geo.haversine(myCitadel.lat, myCitadel.lon, targetCit.lat, targetCit.lon);
       if (distToMyHold < 250) {
-        showToast(`🛡️ Peace Treaty Active: You cannot siege holds within 250 meters of your own Citadel (currently ${Math.round(distToMyHold)}m away). Travel further to conquer foreign lands!`);
+        (window.showToast || alert)(`🛡️ Peace Treaty Active: You cannot siege holds within 250 meters of your own Citadel (currently ${Math.round(distToMyHold)}m away). Travel further to conquer foreign lands!`);
         return;
       }
     }
 
     // Anti-Exploit Security Check: Block self-sieges completely!
     if (targetCit && targetCit.defender && targetCit.defender.id === state.player?.id) {
-      showToast("🛡️ You already hold this Citadel! You cannot siege yourself.");
+      (window.showToast || alert)("🛡️ You already hold this Citadel! You cannot siege yourself.");
       return;
     }
     
     if ((Number(state.diamonds) || 0) < CONFIG.CITADEL_SIEGE_COST_DIAMONDS) {
-      showToast("You need at least 1 Diamond to initiate a Siege!");
+      (window.showToast || alert)("You need at least 1 Diamond to initiate a Siege!");
       return;
     }
 
