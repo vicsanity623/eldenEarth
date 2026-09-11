@@ -2677,24 +2677,33 @@ html,body{
   gap: 12px;
 }
 .guide-card-icon {
-  font-size: 24px;
+  font-size: 28px;
   flex-shrink: 0;
   margin-top: 2px;
 }
+.guide-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
 .guide-card-text strong {
   display: block;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--gold-hi);
-  margin-bottom: 3px;
+  line-height: 1.25;
+  margin-bottom: 1px;
 }
 .guide-card-text span {
-  font-size: 12px;
+  font-size: block;
+  font-size: 14px;
   color: var(--text-dim);
-  line-height: 1.45;
-  display: block;
+  line-height: 1.25;
+  margin-bottom: 1px;
 }
 
-/* ---------- Reddit Community & Support Card ---------- */
+/* ---------- Github and Discord Community & Support Card ---------- */
 .community-support-card {
   display: flex;
   align-items: center;
