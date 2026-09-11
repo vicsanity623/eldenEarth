@@ -174,7 +174,7 @@
 
     CONFIG.PLOT_RARITIES.forEach(rarity => {
       if (el(`weight-${rarity.key}`)) el(`weight-${rarity.key}`).textContent = rarity.weight;
-      if (el(`rate-${rarity.key}`)) el(`rate-${rarity.key}`).textContent = rarity.rate;
+      if (el(`rate-${rarity.key}`)) el(`rate-${rarity.key}`).textContent = rarity.rate.toFixed(10);
     });
   }
   
