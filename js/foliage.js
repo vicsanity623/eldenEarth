@@ -184,14 +184,22 @@ const Foliage = (() => {
     return x - Math.floor(x);
   }
 
+  let lastFoliagePlotCount = -1;
+
   function update() {
     // Battery Saver: Skip foliage regeneration when screen is off
     if (!mapInstance || !isImageLoaded || !mapInstance.getSource("foliage-source") || document.hidden) return;
 
+    const allPlots = (typeof Grid !== "undefined" && Grid.getAllPlots) ? Grid.getAllPlots() : {};
+    const currentPlotsCount = Object.keys(allPlots).length;
+
+    // Zero-CPU Guard: If plot count hasn't changed and foliage is already on screen, DO NOT re-render!
+    if (currentPlotsCount === lastFoliagePlotCount && activeMarkers.length > 0) return;
+    lastFoliagePlotCount = currentPlotsCount;
+
     activeMarkers.forEach(m => m.remove());
     activeMarkers = [];
 
-    const allPlots = (typeof Grid !== "undefined" && Grid.getAllPlots) ? Grid.getAllPlots() : {};
     const tileSize = CONFIG.TILE_SIZE_METERS || 6.096;
     const grassFeatures = [];
     const zoom = mapInstance.getZoom();
