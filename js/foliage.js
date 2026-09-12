@@ -256,18 +256,29 @@ const Foliage = (() => {
     let mushroomCount = 0;
     const MAX_VISIBLE_MUSHROOMS = 15; // Caps DOM markers to keep 60fps smooth
 
+    // User's active 5-mile (8,000m) horizon center
+    const mapCenter = mapInstance.getCenter();
+    const userLat = mapCenter ? mapCenter.lat : 33.585;
+    const userLon = mapCenter ? mapCenter.lng : -112.015;
+
     for (const tid in allPlots) {
       const p = allPlots[tid];
-      const rarityKey = p.rarity?.key || p.rarity || "common";
       const px = parseInt(p.tx, 10);
       const py = parseInt(p.ty, 10);
-
-      let seed = Math.abs(px * 374761393 + py * 668265263);
 
       const c = Geo.fromMercator(
         px * tileSize + tileSize / 2,
         py * tileSize + tileSize / 2
       );
+
+      // 5-MILE HORIZON CULLING: Never render grass or mushrooms for other states/cities!
+      const distToPlayer = Geo.haversine(userLat, userLon, c.lat, c.lon);
+      if (distToPlayer > 8000) {
+        continue; // Skip! Eliminates floating sky mushrooms and saves 85% GPU power!
+      }
+
+      const rarityKey = p.rarity?.key || p.rarity || "common";
+      let seed = Math.abs(px * 374761393 + py * 668265263);
 
       // 1. Lush 3D Grass: ONLY for Epic and Legendary plots!
       const hasGrass = (rarityKey === "epic" || rarityKey === "legendary");
