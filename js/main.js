@@ -472,11 +472,11 @@
       style: mapStyle,
       center: [currentPos.lon, currentPos.lat],
       zoom: 18.0,
-      minZoom: 17.4,     // 1 mile max zoom-out
-      maxZoom: 19.0,     // Street-level max zoom-in
-      pitch: 60,         // Default 60° angle
+      minZoom: 16.4,     // 1 mile max zoom-out
+      maxZoom: 20.0,     // Street-level max zoom-in
+      pitch: 75,         // Default 60° angle
       minPitch: 0,       // Allows flat 0° top-down view
-      maxPitch: 74,      // Allows cinematic 70° low angle
+      maxPitch: 75,      // Allows cinematic 70° low angle
       bearing: 0,
       antialias: false, // Saves 30% GPU load
       dragPan: false,    // Map stays locked to player (cannot scroll away)
@@ -541,6 +541,24 @@
     function setupGameLayers() {
       if (!map || !map.getStyle()) return;
 
+      // 1. Dynamic Street & Road Illuminator (Brightens pitch-black vector tiles)
+      try {
+        const layers = map.getStyle().layers || [];
+        layers.forEach((l) => {
+          // Brighten and highlight all roads, streets, highways, and paths
+          if (l.type === "line" && (l.id.includes("road") || l.id.includes("street") || l.id.includes("highway") || l.id.includes("transportation") || l.id.includes("path") || l.id.includes("track"))) {
+            map.setPaintProperty(l.id, "line-color", "#2d4059");
+            map.setPaintProperty(l.id, "line-opacity", 0.9);
+          }
+          // Lift pitch-black background to rich midnight obsidian
+          if (l.type === "background") {
+            map.setPaintProperty(l.id, "background-color", "#0e1522");
+          }
+        });
+      } catch (err) {
+        console.warn("[MapEngine] Street brighten notice:", err);
+      }
+
       // 2. Add True 3D Extruded Buildings (if source exists)
       try {
         const layers = map.getStyle().layers || [];
@@ -556,7 +574,7 @@
             type: "fill-extrusion",
             minzoom: 15,
             paint: {
-              "fill-extrusion-color": "#182232",
+              "fill-extrusion-color": "#1f2c40",
               "fill-extrusion-height": ["get", "height"],
               "fill-extrusion-base": ["get", "min_height"],
               "fill-extrusion-opacity": 0.85,
@@ -655,9 +673,9 @@
       try {
         if (map.setFog) {
           map.setFog({
-            range: [0.8, 8],
-            color: "#0c131c",
-            "horizon-blend": 0.3
+            range: [0.5, 3.5], // Blends the horizon smoothly into clean dark sky
+            color: "#080d14",  // Deep midnight obsidian sky
+            "horizon-blend": 0.5
           });
         }
       } catch (e) {}
@@ -1411,10 +1429,12 @@
       map.setMaxZoom(20.0);
 
       // 3. Smoothly tilt back to 58° 3D perspective
+      map.setMinPitch(0);
+      map.setMaxPitch(80);
       map.flyTo({
         center: [currentPos.lon, currentPos.lat],
-        pitch: 60,
-        zoom: 18.5,
+        pitch: 70,
+        zoom: 18.4,
         duration: 800,
         essential: true,
       });
@@ -1429,7 +1449,7 @@
         map.flyTo({
           center: [currentPos.lon, currentPos.lat],
           bearing: 0,      // Snaps camera back to True North
-          pitch: 60,       // Resets to 3D Isometric View
+          pitch: 70,       // Resets to 3D Isometric View
           zoom: 18.5,      // Returns to default sweetspot zoom
           duration: 750,
           essential: true,
