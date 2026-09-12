@@ -327,13 +327,17 @@ const Grid = (() => {
       }
     }
 
-    // 1. RENDER CLAIMED PLOTS (Instantly)
+    // 1. RENDER CLAIMED PLOTS (With Self vs Other Player Territory Distinction)
     const claimedFeatures = [];
+    const myPlayerId = state.player?.id;
+
     for (const tid in allPlots) {
       const plot = allPlots[tid];
       const bounds = Geo.tileBounds(plot.tx, plot.ty, CONFIG.TILE_SIZE_METERS);
       const coords = bounds.map(pt => [pt[1], pt[0]]);
       coords.push(coords[0]);
+
+      const isSelf = Boolean(myPlayerId && plot.ownerId === myPlayerId);
 
       claimedFeatures.push({
         type: "Feature",
@@ -341,6 +345,7 @@ const Grid = (() => {
           color: rarityInfo(plot.rarity).color,
           rarity: plot.rarity,
           ownerId: plot.ownerId,
+          isSelf: isSelf,
         },
         geometry: { type: "Polygon", coordinates: [coords] },
       });
@@ -353,35 +358,42 @@ const Grid = (() => {
     } else {
       map.addSource("plots-source", { type: "geojson", data: claimedGeoJSON });
 
-      // 1. Subtle Lush Green Grass Base Underlay (All Claimed Parcels)
+      // 1. Lush Green Grass Base (ONLY on Epic & Legendary Parcels)
       map.addLayer({
         id: "plots-grass-base",
         type: "fill",
         source: "plots-source",
         paint: {
           "fill-color": "#27ae60",
-          "fill-opacity": 0.28, // Soft meadow green tint
+          "fill-opacity": [
+            "case",
+            ["in", ["get", "rarity"], ["literal", ["epic", "legendary"]]],
+            ["case", ["==", ["get", "isSelf"], true], 0.35, 0.12],
+            0
+          ],
         },
       });
 
-      // 2. Rarity Tint Layer (Common, Rare, Epic, Legendary overlay)
+      // 2. Rarity Tint (Bright on your plots, dimmed on rivals)
       map.addLayer({
         id: "plots-fill",
         type: "fill",
         source: "plots-source",
         paint: {
           "fill-color": ["get", "color"],
-          "fill-opacity": 0.45,
+          "fill-opacity": ["case", ["==", ["get", "isSelf"], true], 0.55, 0.20],
         },
       });
 
+      // 3. Neon Rarity Borders (Thick on your plots, thin on rivals)
       map.addLayer({
         id: "plots-line",
         type: "line",
         source: "plots-source",
         paint: {
           "line-color": ["get", "color"],
-          "line-width": 2,
+          "line-width": ["case", ["==", ["get", "isSelf"], true], 2.5, 1.2],
+          "line-opacity": ["case", ["==", ["get", "isSelf"], true], 0.95, 0.45],
         },
       });
     }
