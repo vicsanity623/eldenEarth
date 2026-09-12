@@ -106,16 +106,24 @@ const Foliage = (() => {
     );
   }
 
-  // GPU-Accelerated Hardware Billboard (No CPU Gaussian Blur)
-  function create3DMushroomElement() {
+  // Dynamic Growth 3D Mushroom Billboard (Scales with connected territory!)
+  function create3DMushroomElement(scaleMultiplier = 1.0) {
     const wrap = document.createElement("div");
     wrap.className = "parcel-prop-wrap";
     wrap.style.cssText = "will-change: transform; transform: translateZ(0); pointer-events: none;";
 
+    const pxSize = Math.round(26 * scaleMultiplier);
+    const fontPx = Math.round(18 * scaleMultiplier);
+
     if (cachedMushroomImgSrc) {
-      wrap.innerHTML = `<img src="${cachedMushroomImgSrc}" style="width:26px;height:26px;object-fit:contain;display:block;">`;
+      wrap.innerHTML = `<img src="${cachedMushroomImgSrc}" style="width:${pxSize}px;height:${pxSize}px;object-fit:contain;display:block;">`;
     } else {
-      wrap.innerHTML = `<span style="font-size:18px;">🍄</span>`;
+      wrap.innerHTML = `<span style="font-size:${fontPx}px;line-height:1;display:block;">🍄</span>`;
+    }
+
+    // 4+ Mega Cluster: Add glowing golden spore aura to giant colossal mushrooms!
+    if (scaleMultiplier >= 2.0) {
+      wrap.style.filter = "drop-shadow(0 0 10px rgba(240, 211, 138, 0.9))";
     }
 
     return wrap;
@@ -184,21 +192,62 @@ const Foliage = (() => {
     return x - Math.floor(x);
   }
 
-  let lastFoliagePlotCount = -1;
-
   function update() {
     // Battery Saver: Skip foliage regeneration when screen is off
     if (!mapInstance || !isImageLoaded || !mapInstance.getSource("foliage-source") || document.hidden) return;
 
-    const allPlots = (typeof Grid !== "undefined" && Grid.getAllPlots) ? Grid.getAllPlots() : {};
-    const currentPlotsCount = Object.keys(allPlots).length;
-
-    // Zero-CPU Guard: If plot count hasn't changed and foliage is already on screen, DO NOT re-render!
-    if (currentPlotsCount === lastFoliagePlotCount && activeMarkers.length > 0) return;
-    lastFoliagePlotCount = currentPlotsCount;
-
     activeMarkers.forEach(m => m.remove());
     activeMarkers = [];
+
+    const allPlots = (typeof Grid !== "undefined" && Grid.getAllPlots) ? Grid.getAllPlots() : {};
+
+    // --- CONNECTED LEGENDARY TERRITORY SCANNER (Flood-Fill Clustering) ---
+    const visitedLegendary = new Set();
+    const legendaryClusterSizeMap = {};
+
+    for (const tid in allPlots) {
+      const p = allPlots[tid];
+      const rKey = p.rarity?.key || p.rarity || "common";
+      if (rKey !== "legendary" || visitedLegendary.has(tid)) continue;
+
+      const ownerId = p.ownerId;
+      const cluster = [];
+      const queue = [p];
+      visitedLegendary.add(tid);
+
+      while (queue.length > 0) {
+        const curr = queue.shift();
+        cluster.push(curr);
+
+        const cx = parseInt(curr.tx, 10);
+        const cy = parseInt(curr.ty, 10);
+
+        const neighbors = [
+          `${cx + 1}_${cy}`,
+          `${cx - 1}_${cy}`,
+          `${cx}_${cy + 1}`,
+          `${cx}_${cy - 1}`,
+        ];
+
+        for (const nId of neighbors) {
+          const np = allPlots[nId];
+          if (!visitedLegendary.has(nId) && np && np.ownerId === ownerId) {
+            const nRarity = np.rarity?.key || np.rarity || "common";
+            if (nRarity === "legendary") {
+              visitedLegendary.add(nId);
+              queue.push(np);
+            }
+          }
+        }
+      }
+
+      // Record exact cluster size for all plots in this connected territory
+      const clusterCount = cluster.length;
+      for (const item of cluster) {
+        const itemTid = `${item.tx}_${item.ty}`;
+        legendaryClusterSizeMap[itemTid] = clusterCount;
+      }
+    }
 
     const tileSize = CONFIG.TILE_SIZE_METERS || 6.096;
     const grassFeatures = [];
@@ -220,31 +269,38 @@ const Foliage = (() => {
         py * tileSize + tileSize / 2
       );
 
-      // Balanced: 2 to 3 lush grass clumps per plot (cuts GPU load by 60%)
-      const tuftCount = 2 + Math.floor(seededRandom(seed++) * 2);
+      // 1. Lush 3D Grass: ONLY for Epic and Legendary plots!
+      const hasGrass = (rarityKey === "epic" || rarityKey === "legendary");
+      if (hasGrass) {
+        const tuftCount = rarityKey === "legendary" ? 3 : 2;
 
-      for (let i = 0; i < tuftCount; i++) {
-        const offsetX = (seededRandom(seed++) - 0.5) * 0.000032;
-        const offsetY = (seededRandom(seed++) - 0.5) * 0.000032;
-        const randomScale = 0.85 + seededRandom(seed++) * 0.4;
+        for (let i = 0; i < tuftCount; i++) {
+          const offsetX = (seededRandom(seed++) - 0.5) * 0.000032;
+          const offsetY = (seededRandom(seed++) - 0.5) * 0.000032;
+          const randomScale = 0.85 + seededRandom(seed++) * 0.4;
 
-        grassFeatures.push({
-          type: "Feature",
-          properties: { scale: randomScale },
-          geometry: {
-            type: "Point",
-            coordinates: [c.lon + offsetX, c.lat + offsetY]
-          }
-        });
+          grassFeatures.push({
+            type: "Feature",
+            properties: { scale: randomScale },
+            geometry: {
+              type: "Point",
+              coordinates: [c.lon + offsetX, c.lat + offsetY]
+            }
+          });
+        }
       }
 
-      // Render 3D Mushrooms with budget cap to prevent DOM clutter
-      if (rarityKey === "common" && zoom >= 16.5 && mushroomCount < MAX_VISIBLE_MUSHROOMS) {
+      // 2. Magical 3D Mushrooms: ONLY for Legendary plots (Evolves with territory size!)
+      if (rarityKey === "legendary" && zoom >= 16.5 && mushroomCount < MAX_VISIBLE_MUSHROOMS) {
         mushroomCount++;
         const mushOffsetX = (seededRandom(seed++) - 0.5) * 0.000015;
         const mushOffsetY = (seededRandom(seed++) - 0.5) * 0.000015;
 
-        const mushEl = create3DMushroomElement();
+        const clusterSize = legendaryClusterSizeMap[`${px}_${py}`] || 1;
+        // 1 Tile = 1.0X | 2-3 Tiles = 1.4X | 4+ Connected Tiles = 2.0X Giant Colossal!
+        const territoryScale = clusterSize >= 4 ? 2.0 : (clusterSize >= 2 ? 1.4 : 1.0);
+
+        const mushEl = create3DMushroomElement(territoryScale);
         const m = new mapboxgl.Marker({
           element: mushEl,
           anchor: "bottom",
