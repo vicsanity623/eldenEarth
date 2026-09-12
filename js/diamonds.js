@@ -237,12 +237,20 @@ const Diamonds = (() => {
     const count = Object.keys(state.liveDiamonds).length;
     if (count >= CONFIG.DIAMOND_MAX_ACTIVE) return;
 
-    const p = Geo.randomPointInRadius(
-      playerPos.lat,
-      playerPos.lon,
-      CONFIG.DIAMOND_SPAWN_RADIUS_METERS,
-      CONFIG.DIAMOND_COLLECT_RADIUS_METERS
-    );
+    // 🏠 Couch Play Rule: Check how many diamonds are currently inside reach circle
+    const collectRadius = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
+    let diamondsInside = 0;
+    for (const did in state.liveDiamonds) {
+      const d = state.liveDiamonds[did];
+      if (withinCollectRange(d.lat, d.lon)) diamondsInside++;
+    }
+
+    // Allow 1-2 diamonds inside reach circle; once 2 exist, spawn outside across neighborhood
+    const isCouchSpawn = diamondsInside < 2;
+    const minR = isCouchSpawn ? 15 : collectRadius;
+    const maxR = isCouchSpawn ? Math.max(25, collectRadius - 15) : (CONFIG.DIAMOND_SPAWN_RADIUS_METERS || 1000);
+
+    const p = Geo.randomPointInRadius(playerPos.lat, playerPos.lon, maxR, minR);
     state.liveDiamonds[id()] = { lat: p.lat, lon: p.lon, spawnedAt: now };
     state.lastDiamondSpawn = now;
     Store.save();

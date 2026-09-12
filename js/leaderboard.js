@@ -44,16 +44,7 @@ const Leaderboard = (() => {
     const state = Store.get();
     const db = Store.getDb();
 
-    if (db) {
-      try {
-        const plotSnap = await db.collection("plots").get();
-        plotSnap.forEach(doc => {
-          allPlots[doc.id] = doc.data();
-        });
-      } catch (e) {
-        console.warn("[Leaderboard] Plots query notice:", e);
-      }
-    }
+    // (Plots already cached in memory via Grid.getAllPlots() — zero duplicate reads!)
 
     const playerStats = {};
     const cityCounts = {};
@@ -235,7 +226,7 @@ const Leaderboard = (() => {
     const savedPlayers = {};
     if (db) {
       try {
-        const snap = await db.collection("saves").get();
+        const snap = await db.collection("saves").limit(50).get();
 
         snap.forEach(doc => {
           const d = doc.data();
@@ -472,7 +463,8 @@ const Leaderboard = (() => {
   async function open() {
     if (!modal) modal = document.getElementById("leaderboard-modal");
     if (modal) modal.classList.remove("hidden");
-    const data = await fetchRankings();
+    
+    const data = await fetchRankings(false);
     render(data);
   }
 

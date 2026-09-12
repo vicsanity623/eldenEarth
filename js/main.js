@@ -732,7 +732,6 @@
       state.lifetimeRent += deltaEarned;
       state.lastTick = now;
       
-      Store.save(false); // Local save only (debounced cloud sync)
       updateTopbar();
     }, 1000);
   }
