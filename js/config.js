@@ -32,12 +32,12 @@ const CONFIG = {
 
   // --- Diamonds ---
   DIAMOND_SPAWN_RADIUS_METERS: 201,     // ~220 yards maximum
-  DIAMOND_COLLECT_RADIUS_METERS: 70,    // ~77 yards; spawn outside this reach
+  DIAMOND_COLLECT_RADIUS_METERS: 75,    // ~77 yards; spawn outside this reach
   DIAMOND_MAX_ACTIVE: 6,
-  DIAMOND_SPAWN_CHECK_MS: 12 * 60 * 1000, // One diamond every 12 minutes
-  DIAMOND_IDLE_TIMEOUT_MS: 60 * 60 * 1000, // Pause spawning after 1 hour still
+  DIAMOND_SPAWN_CHECK_MS: 2 * 60 * 1000, // One diamond every 12 minutes
+  DIAMOND_IDLE_TIMEOUT_MS: 120 * 60 * 1000, // Pause spawning after 1 hour still
   DIAMOND_MOVEMENT_THRESHOLD_METERS: 10, // Ignore GPS drift smaller than 10m
-  DIAMOND_LIFETIME_MS: 95 * 60 * 1000,  // 1 hour 35 minutes
+  DIAMOND_LIFETIME_MS: 25 * 60 * 1000,  // 1 hour 35 minutes
 
   // --- Diamond Extractor ---
   EXTRACTOR_MIN_TILES: 5,               // Requires 5+ connected plots
