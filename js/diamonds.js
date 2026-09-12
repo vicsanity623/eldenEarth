@@ -237,21 +237,42 @@ const Diamonds = (() => {
     const count = Object.keys(state.liveDiamonds).length;
     if (count >= CONFIG.DIAMOND_MAX_ACTIVE) return;
 
-    // 🏠 Couch Play Rule: Check how many diamonds are currently inside reach circle
+    // --- Strict 8-Minute Couch Wave Cooldown Engine ---
     const collectRadius = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
-    let diamondsInside = 0;
-    for (const did in state.liveDiamonds) {
-      const d = state.liveDiamonds[did];
-      if (withinCollectRange(d.lat, d.lon)) diamondsInside++;
+    const spawnRadius = CONFIG.DIAMOND_SPAWN_RADIUS_METERS || 1000;
+    const INNER_WAVE_COOLDOWN = CONFIG.DIAMOND_INNER_COOLDOWN_MS || (8 * 60 * 1000); // 8-Minute Circle Lockout
+
+    // Reset the couch wave quota only once every 8 minutes
+    if (!state.lastInnerWaveTime || (now - state.lastInnerWaveTime >= INNER_WAVE_COOLDOWN)) {
+      state.lastInnerWaveTime = now;
+      state.innerWaveSpawns = 0;
     }
 
-    // Allow 1-2 diamonds inside reach circle; once 2 exist, spawn outside across neighborhood
-    const isCouchSpawn = diamondsInside < 2;
-    const minR = isCouchSpawn ? 15 : collectRadius;
-    const maxR = isCouchSpawn ? Math.max(25, collectRadius - 15) : (CONFIG.DIAMOND_SPAWN_RADIUS_METERS || 1000);
+    let diamondsInside = 0;
+    for (const did in state.liveDiamonds) {
+      if (withinCollectRange(state.liveDiamonds[did].lat, state.liveDiamonds[did].lon)) {
+        diamondsInside++;
+      }
+    }
 
-    const p = Geo.randomPointInRadius(playerPos.lat, playerPos.lon, maxR, minR);
-    state.liveDiamonds[id()] = { lat: p.lat, lon: p.lon, spawnedAt: now };
+    // Strict Rule: Can ONLY spawn inside if under 2 for this wave AND fewer than 2 exist inside
+    const canSpawnInner = (state.innerWaveSpawns < 2) && (diamondsInside < 2);
+
+    const angle = Math.random() * Math.PI * 2;
+    let dist;
+    if (canSpawnInner) {
+      // 1. Spawns inside reach circle (Increments wave count)
+      dist = 15 + Math.random() * (collectRadius - 30);
+      state.innerWaveSpawns = (state.innerWaveSpawns || 0) + 1;
+    } else {
+      // 2. Circle is LOCKED for 8 minutes -> MUST spawn outside in the neighborhood!
+      dist = collectRadius + 20 + Math.random() * (spawnRadius - collectRadius - 20);
+    }
+
+    const dLat = (dist * Math.cos(angle)) / 111111;
+    const dLon = (dist * Math.sin(angle)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
+
+    state.liveDiamonds[id()] = { lat: playerPos.lat + dLat, lon: playerPos.lon + dLon, spawnedAt: now };
     state.lastDiamondSpawn = now;
     Store.save();
     renderAll();
