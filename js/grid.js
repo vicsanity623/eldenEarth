@@ -327,15 +327,26 @@ const Grid = (() => {
       }
     }
 
-    // 1. RENDER CLAIMED PLOTS (With Self vs Other Player Territory Distinction)
+    // 1. RENDER CLAIMED PLOTS (With 5-Mile Horizon Culling)
     const claimedFeatures = [];
     const myPlayerId = state.player?.id;
+    const refLat = (playerCoords && playerCoords.lat) ? playerCoords.lat : (map ? map.getCenter().lat : null);
+    const refLon = (playerCoords && playerCoords.lon) ? playerCoords.lon : (map ? map.getCenter().lng : null);
 
     for (const tid in allPlots) {
       const plot = allPlots[tid];
       const bounds = Geo.tileBounds(plot.tx, plot.ty, CONFIG.TILE_SIZE_METERS);
       const coords = bounds.map(pt => [pt[1], pt[0]]);
       coords.push(coords[0]);
+
+      // 5-Mile Horizon Culling: Skip polygons in Ohio, Canada, or Puerto Rico!
+      if (refLat && refLon) {
+        const cLat = (bounds[0][0] + bounds[2][0]) / 2;
+        const cLon = (bounds[0][1] + bounds[2][1]) / 2;
+        if (Geo.haversine(refLat, refLon, cLat, cLon) > 8000) {
+          continue; // Skip distant plots!
+        }
+      }
 
       const isSelf = Boolean(myPlayerId && plot.ownerId === myPlayerId);
 
