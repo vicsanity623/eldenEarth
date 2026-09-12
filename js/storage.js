@@ -305,8 +305,11 @@ const Store = (() => {
 
   function applyOfflineProgress() {
     const now = Date.now();
-    const elapsedSec = Math.max(0, (now - (state.lastTick || now)) / 1000);
+    const lastTick = state.lastTick || state.createdAt || now;
+    const elapsedSec = Math.max(0, (now - lastTick) / 1000);
+    
     const earned = elapsedSec * totalRate();
+    
     if (state.cash === undefined) state.cash = 0;
     if (state.lifetimeRent === undefined) state.lifetimeRent = state.cash;
 
@@ -325,7 +328,7 @@ const Store = (() => {
     }
 
     state.lastTick = now;
-    save();
+    save(false);
     return earned;
   }
 
