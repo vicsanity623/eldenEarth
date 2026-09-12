@@ -223,58 +223,73 @@ const Diamonds = (() => {
     const now = Date.now();
     const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 35000;
 
-    // Cooldown gate: Prevent force-close reload exploit
+    // Cooldown gate: Prevent force-close reload spam
     if (state.lastDiamondSpawn && (now - state.lastDiamondSpawn < spawnInterval)) {
       return;
     }
 
-    // --- Strict 8-Minute Couch Wave Cooldown Engine ---
     const collectRadius = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
     const spawnRadius = CONFIG.DIAMOND_SPAWN_RADIUS_METERS || 1000;
-    const INNER_WAVE_COOLDOWN = CONFIG.DIAMOND_INNER_COOLDOWN_MS || (8 * 60 * 1000); // 8-Minute Circle Lockout
+    const INNER_WAVE_COOLDOWN = CONFIG.DIAMOND_INNER_COOLDOWN_MS || (8 * 60 * 1000);
+    const MAX_ACTIVE = CONFIG.DIAMOND_MAX_ACTIVE || 18;
 
-    // Reset the couch wave quota only once every 8 minutes
+    // Reset inner wave quota every 8 minutes
     if (!state.lastInnerWaveTime || (now - state.lastInnerWaveTime >= INNER_WAVE_COOLDOWN)) {
       state.lastInnerWaveTime = now;
       state.innerWaveSpawns = 0;
     }
 
+    // Count diamonds inside reach circle vs outer neighborhood
     let diamondsInside = 0;
-    let totalCount = 0;
+    let diamondsOutside = 0;
     for (const did in state.liveDiamonds) {
-      totalCount++;
-      if (withinCollectRange(state.liveDiamonds[did].lat, state.liveDiamonds[did].lon)) {
+      const d = state.liveDiamonds[did];
+      if (withinCollectRange(d.lat, d.lon)) {
         diamondsInside++;
+      } else {
+        diamondsOutside++;
       }
     }
 
-    // Strict Rule: Can ONLY spawn inside if under 2 for this wave AND fewer than 2 exist inside
+    let spawnedAny = false;
+
+    // --- TRACK 1: Independent Outer World Spawner (Always seeds neighborhood for walking!) ---
+    if (diamondsOutside < (MAX_ACTIVE - 2)) {
+      const angleOuter = Math.random() * Math.PI * 2;
+      const distOuter = collectRadius + 25 + Math.random() * (spawnRadius - collectRadius - 25);
+      const dLatOut = (distOuter * Math.cos(angleOuter)) / 111111;
+      const dLonOut = (distOuter * Math.sin(angleOuter)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
+
+      state.liveDiamonds[id()] = {
+        lat: playerPos.lat + dLatOut,
+        lon: playerPos.lon + dLonOut,
+        spawnedAt: now
+      };
+      spawnedAny = true;
+    }
+
+    // --- TRACK 2: Independent Inner Circle Spawner (Couch Play Wave) ---
     const canSpawnInner = (state.innerWaveSpawns < 2) && (diamondsInside < 2);
-
-    // Only block if we CANNOT spawn an inner diamond AND world cap is full!
-    const maxActive = CONFIG.DIAMOND_MAX_ACTIVE || 18;
-    if (!canSpawnInner && totalCount >= maxActive) {
-      return;
-    }
-
-    const angle = Math.random() * Math.PI * 2;
-    let dist;
     if (canSpawnInner) {
-      // 1. Spawns inside reach circle (Increments wave count)
-      dist = 15 + Math.random() * (collectRadius - 30);
+      const angleInner = Math.random() * Math.PI * 2;
+      const distInner = 15 + Math.random() * (collectRadius - 30);
+      const dLatIn = (distInner * Math.cos(angleInner)) / 111111;
+      const dLonIn = (distInner * Math.sin(angleInner)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
+
+      state.liveDiamonds[id()] = {
+        lat: playerPos.lat + dLatIn,
+        lon: playerPos.lon + dLonIn,
+        spawnedAt: now
+      };
       state.innerWaveSpawns = (state.innerWaveSpawns || 0) + 1;
-    } else {
-      // 2. Circle is LOCKED for 8 minutes -> MUST spawn outside in the neighborhood!
-      dist = collectRadius + 20 + Math.random() * (spawnRadius - collectRadius - 20);
+      spawnedAny = true;
     }
 
-    const dLat = (dist * Math.cos(angle)) / 111111;
-    const dLon = (dist * Math.sin(angle)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
-
-    state.liveDiamonds[id()] = { lat: playerPos.lat + dLat, lon: playerPos.lon + dLon, spawnedAt: now };
-    state.lastDiamondSpawn = now;
-    Store.save();
-    renderAll();
+    if (spawnedAny) {
+      state.lastDiamondSpawn = now;
+      Store.save();
+      renderAll();
+    }
   }
 
   function init(mapboxMap, callbacks) {
