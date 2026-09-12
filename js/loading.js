@@ -189,35 +189,16 @@ const Bootloader = (() => {
       // 4. Map Engine (75%)
       await step(100, 75, "Mounting 3D Vector engine & WebGL layers...");
 
-      // 5. Global Plots Preload with 2.5s Safety Timeout (Prevents hanging at 98%)
-      setProgress(90, "Pre-fetching claimed world plots from Firestore...");
-      const db = Store.getDb();
-      if (db) {
-        try {
-          const fetchPromise = db.collection("plots").get();
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 2500));
-
-          const snapshot = await Promise.race([fetchPromise, timeoutPromise]);
-          const state = Store.get();
-          if (!state.plots) state.plots = {};
-
-          snapshot.forEach((doc) => {
-            const plotData = doc.data();
-            if (typeof Grid !== "undefined" && Grid.setGlobalPlot) {
-              Grid.setGlobalPlot(doc.id, plotData);
-            }
-            if (plotData.ownerId === state.player.id) {
-              state.plots[doc.id] = plotData;
-              // Recover name & photo avatar directly from your cloud plots
-              if (plotData.ownerName && plotData.ownerName !== "Traveler" && (!state.player.name || state.player.name === "Traveler")) {
-                state.player.name = plotData.ownerName;
-                if (plotData.avatar && plotData.avatar !== "🙂") state.player.avatar = plotData.avatar;
-              }
-            }
-          });
-          Store.save();
-        } catch (e) {
-          console.warn("[Bootloader] Firestore fast-forwarded (offline/timeout):", e);
+      // 5. Global Plots Sync (Handled seamlessly by Grid live listener — zero duplicate reads!)
+      await step(80, 90, "Preparing world parcels & player territory...");
+      const state = Store.get();
+      if (state && state.plots) {
+        for (const pid in state.plots) {
+          const p = state.plots[pid];
+          if (p && p.ownerName && p.ownerName !== "Traveler" && (!state.player.name || state.player.name === "Traveler")) {
+            state.player.name = p.ownerName;
+            if (p.avatar && p.avatar !== "🙂") state.player.avatar = p.avatar;
+          }
         }
       }
 

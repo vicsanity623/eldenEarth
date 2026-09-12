@@ -133,17 +133,35 @@ const Chat = (() => {
         .orderBy("timestamp", "desc")
         .limit(MAX_MESSAGES)
         .onSnapshot((snapshot) => {
-          messages.length = 0;
-          snapshot.forEach((doc) => {
-            messages.push({ id: doc.id, ...doc.data() });
+          let hasNewMessage = false;
+
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === "added") {
+              hasNewMessage = true;
+              // Check if message is already in our array to prevent duplicates
+              if (!messages.find(m => m.id === change.doc.id)) {
+                messages.push({ id: change.doc.id, ...change.doc.data() });
+              }
+            } else if (change.type === "removed") {
+              const idx = messages.findIndex(m => m.id === change.doc.id);
+              if (idx > -1) messages.splice(idx, 1);
+            }
           });
 
-          // Sort ascending (chronological: oldest at top, newest at bottom)
-          messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
-          renderMessages();
+          // Only sort, clean, and re-render if something actually changed!
+          if (hasNewMessage) {
+            messages.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
-          if (!isOpen && unreadBadge) {
-            unreadBadge.classList.remove("hidden");
+            // Enforce max array size locally
+            if (messages.length > MAX_MESSAGES) {
+              messages.splice(0, messages.length - MAX_MESSAGES);
+            }
+
+            renderMessages();
+
+            if (!isOpen && unreadBadge) {
+              unreadBadge.classList.remove("hidden");
+            }
           }
         }, (err) => console.warn("[Chat] Listener warning:", err));
     } catch (e) {
