@@ -17,7 +17,7 @@ const Diamonds = (() => {
     popup.style.top = `${y}px`;
     popup.innerHTML = htmlContent;
     document.body.appendChild(popup);
-    setTimeout(() => popup.remove(), 1100);
+    setTimeout(() => popup.remove(), 2100);
   }
 
   // Flying 3D Gem Arc Particle to HUD
@@ -221,11 +221,11 @@ const Diamonds = (() => {
     pruneExpired();
 
     const now = Date.now();
-    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 12 * 60 * 1000;
+    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 2 * 60 * 1000;
 
     // Do not accumulate diamonds around a player who has stopped moving.
     if (state.lastDiamondMovementAt &&
-        now - state.lastDiamondMovementAt >= (CONFIG.DIAMOND_IDLE_TIMEOUT_MS || 60 * 60 * 1000)) {
+        now - state.lastDiamondMovementAt >= (CONFIG.DIAMOND_IDLE_TIMEOUT_MS || 120 * 60 * 1000)) {
       return;
     }
 
@@ -258,7 +258,7 @@ const Diamonds = (() => {
 
     // Regular spawn ticker
     if (spawnTimer) clearInterval(spawnTimer);
-    spawnTimer = setInterval(trySpawn, CONFIG.DIAMOND_SPAWN_CHECK_MS || 12 * 60 * 1000);
+    spawnTimer = setInterval(trySpawn, CONFIG.DIAMOND_SPAWN_CHECK_MS || 2 * 60 * 1000);
   }
 
   let lastPosUpdate = 0;
