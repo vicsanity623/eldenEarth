@@ -517,8 +517,8 @@ html,body{
 }
 
 @keyframes boostPulse {
-  0%, 100% { transform: translateY(0); box-shadow: 0 0 14px rgba(212, 175, 97, 0.35); }
-  50% { transform: translateY(-4px); box-shadow: 0 0 24px rgba(212, 175, 97, 0.65); }
+  0%, 100% { transform: scale(1); opacity: 0.95; }
+  50% { transform: scale(1.03); opacity: 1; }
 }
 
 /* ---------- Buy Tile Modal Styles ---------- */
@@ -629,8 +629,8 @@ html,body{
 .multiplier-btn .mult-sub { font-size: 8px; letter-spacing: 1px; color: var(--teal); }
 
 @keyframes multGlow {
-  0%, 100% { box-shadow: 0 0 12px rgba(212, 175, 97, 0.4); }
-  50% { transform: translateY(-3px); box-shadow: 0 0 24px rgba(240, 211, 138, 0.8), 0 0 8px var(--teal); }
+  0%, 100% { opacity: 0.92; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.02); }
 }
 
 /* Booster Modal Info */
@@ -1303,23 +1303,28 @@ html,body{
   border: none !important;
   pointer-events: auto;
 }
-/* Distant Diamonds: Sparkle like shining beacons on the horizon */
-/* Distant Diamonds: Sparkle like shining beacons on the horizon */
+
 .diamond-3d-wrapper.far {
   opacity: 0.85 !important;
-  filter: drop-shadow(0 0 5px rgba(79, 214, 196, 0.8));
+  pointer-events: none; /* Disables hit-testing on distant diamonds */
 }
 
-/* Scale the INNER anchor so MapLibre's GPS coordinates are never overwritten! */
+/* 1. Scale down distant crystal */
 .diamond-3d-wrapper.far .gem-anchor {
   transform: scale(0.72);
 }
 
-.diamond-3d-wrapper.far .gem-sparkle-1 {
-  font-size: 14px;
-  color: #a8f5ec;
-  text-shadow: 0 0 8px #4fd6c4, 0 0 14px #fff;
-  animation: sparkleTwinkle 1.8s infinite ease-in-out;
+/* 2. Kill 3D Hover/Bounce Loop on distant diamonds (Zero GPU Compositor Work!) */
+.diamond-3d-wrapper.far .gem-3d {
+  animation: none !important;
+  transform: none !important;
+  will-change: auto !important;
+}
+
+/* 3. Delete Ground Shadows on distant diamonds (Saves 36 blur filter passes!) */
+.diamond-3d-wrapper.far .gem-shadow {
+  display: none !important;
+  animation: none !important;
 }
 
 .gem-anchor {
@@ -1519,7 +1524,7 @@ html,body{
   align-items: center;
   justify-content: center;
   z-index: 2;
-  animation: floatPlotBadge 3s ease-in-out infinite alternate;
+  /* animation: floatPlotBadge 3s ease-in-out infinite alternate; */
 }
 
 /* Subtle Vertical Float */
@@ -2070,8 +2075,8 @@ html,body{
 
 
 @keyframes redPulse {
-  0% { transform: scale(0.9); box-shadow: 0 0 6px #ff3b30; }
-  100% { transform: scale(1.15); box-shadow: 0 0 14px #ff3b30, 0 0 8px #ffffff; }
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.18); opacity: 0.8; }
 }
 
 /* Calendar Card Aesthetic */
@@ -3217,7 +3222,7 @@ button[aria-label="Close ad"],
   height: 64px;
   bottom: 18px;
   margin-left: -32px;
-  animation: mapRingSpin1 4s linear infinite;
+  transform: rotateX(65deg);
 }
 
 .dyson-ring.ring-2 {
@@ -3226,7 +3231,7 @@ button[aria-label="Close ad"],
   bottom: 25px;
   margin-left: -25px;
   border-color: #f0d38a;
-  animation: mapRingSpin2 5s linear infinite reverse;
+  transform: rotateY(65deg);
 }
 
 .dyson-ring.ring-3 {
@@ -3234,7 +3239,7 @@ button[aria-label="Close ad"],
   height: 36px;
   bottom: 32px;
   margin-left: -18px;
-  animation: mapRingSpin1 3.5s linear infinite;
+  transform: rotateX(35deg) rotateY(45deg);
 }
 
 @keyframes mapRingSpin1 { 
