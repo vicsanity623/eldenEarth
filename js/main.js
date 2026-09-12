@@ -472,11 +472,11 @@
       style: mapStyle,
       center: [currentPos.lon, currentPos.lat],
       zoom: 18.0,
-      minZoom: 17.8,     // 1 mile max zoom-out
-      maxZoom: 19.2,     // Street-level max zoom-in
+      minZoom: 17.4,     // 1 mile max zoom-out
+      maxZoom: 19.0,     // Street-level max zoom-in
       pitch: 60,         // Default 60° angle
       minPitch: 0,       // Allows flat 0° top-down view
-      maxPitch: 70,      // Allows cinematic 70° low angle
+      maxPitch: 74,      // Allows cinematic 70° low angle
       bearing: 0,
       antialias: false, // Saves 30% GPU load
       dragPan: false,    // Map stays locked to player (cannot scroll away)
