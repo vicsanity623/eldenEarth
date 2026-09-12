@@ -8,6 +8,24 @@ const Diamonds = (() => {
   let onCollect = () => {};
   let onDenied = () => {};
   let spawnTimer = null;
+  
+  // Vector Tile Water Detection: Prevents diamonds from spawning in oceans, bays, or lakes
+  function isPointInWater(lat, lon) {
+    if (!map) return false;
+    try {
+      const pt = map.project([lon, lat]);
+      // Query MapLibre's vector water layers at these screen coordinates
+      const waterLayers = (map.getStyle().layers || [])
+        .map(l => l.id)
+        .filter(id => id.includes("water") || id.includes("ocean") || id.includes("lake"));
+
+      if (waterLayers.length === 0) return false;
+      const hits = map.queryRenderedFeatures(pt, { layers: waterLayers });
+      return hits.length > 0;
+    } catch (e) {
+      return false;
+    }
+  }
 
   // Floating Combat Text Helper
   function spawnFloatingText(x, y, htmlContent) {
@@ -221,60 +239,66 @@ const Diamonds = (() => {
     pruneExpired();
 
     const now = Date.now();
-    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 35000;
+    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 25000;
 
-    // Cooldown gate: Prevent force-close reload spam
     if (state.lastDiamondSpawn && (now - state.lastDiamondSpawn < spawnInterval)) {
       return;
     }
 
     const collectRadius = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
-    const spawnRadius = CONFIG.DIAMOND_SPAWN_RADIUS_METERS || 1000;
+    const spawnRadius = CONFIG.DIAMOND_SPAWN_RADIUS_METERS || 1200;
     const INNER_WAVE_COOLDOWN = CONFIG.DIAMOND_INNER_COOLDOWN_MS || (8 * 60 * 1000);
-    const MAX_ACTIVE = CONFIG.DIAMOND_MAX_ACTIVE || 18;
+    const MAX_ACTIVE = CONFIG.DIAMOND_MAX_ACTIVE || 36;
 
-    // Reset inner wave quota every 8 minutes
     if (!state.lastInnerWaveTime || (now - state.lastInnerWaveTime >= INNER_WAVE_COOLDOWN)) {
       state.lastInnerWaveTime = now;
       state.innerWaveSpawns = 0;
     }
 
-    // Count diamonds inside reach circle vs outer neighborhood
     let diamondsInside = 0;
     let diamondsOutside = 0;
     for (const did in state.liveDiamonds) {
       const d = state.liveDiamonds[did];
-      if (withinCollectRange(d.lat, d.lon)) {
-        diamondsInside++;
-      } else {
-        diamondsOutside++;
-      }
+      if (withinCollectRange(d.lat, d.lon)) diamondsInside++;
+      else diamondsOutside++;
     }
 
     let spawnedAny = false;
 
-    // --- TRACK 1: Independent Outer World Spawner (Always seeds neighborhood for walking!) ---
+    // --- TRACK 1: Outer Neighborhood Diamond Field (Water-Filtered!) ---
     if (diamondsOutside < (MAX_ACTIVE - 2)) {
-      const angleOuter = Math.random() * Math.PI * 2;
-      const distOuter = collectRadius + 25 + Math.random() * (spawnRadius - collectRadius - 25);
-      const dLatOut = (distOuter * Math.cos(angleOuter)) / 111111;
-      const dLonOut = (distOuter * Math.sin(angleOuter)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
+      let attempts = 0;
+      let targetPt = null;
 
-      state.liveDiamonds[id()] = {
-        lat: playerPos.lat + dLatOut,
-        lon: playerPos.lon + dLonOut,
-        spawnedAt: now
-      };
-      spawnedAny = true;
+      // Re-roll up to 5 times if point lands in an ocean, bay, or lake!
+      while (attempts < 5) {
+        attempts++;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = collectRadius + 30 + Math.random() * (spawnRadius - collectRadius - 30);
+        const dLat = (dist * Math.cos(angle)) / 111111;
+        const dLon = (dist * Math.sin(angle)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
+        const candLat = playerPos.lat + dLat;
+        const candLon = playerPos.lon + dLon;
+
+        if (!isPointInWater(candLat, candLon)) {
+          targetPt = { lat: candLat, lon: candLon };
+          break;
+        }
+      }
+
+      if (targetPt) {
+        state.liveDiamonds[id()] = { lat: targetPt.lat, lon: targetPt.lon, spawnedAt: now };
+        spawnedAny = true;
+      }
     }
 
-    // --- TRACK 2: Independent Inner Circle Spawner (Couch Play Wave) ---
+    // --- TRACK 2: Inner Circle Couch Spawn (Up to 2 per 8-minute wave) ---
     const canSpawnInner = (state.innerWaveSpawns < 2) && (diamondsInside < 2);
     if (canSpawnInner) {
-      const angleInner = Math.random() * Math.PI * 2;
-      const distInner = 15 + Math.random() * (collectRadius - 30);
-      const dLatIn = (distInner * Math.cos(angleInner)) / 111111;
-      const dLonIn = (distInner * Math.sin(angleInner)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
+      const angleIn = Math.random() * Math.PI * 2;
+      const distIn = 15 + Math.random() * (collectRadius - 30);
+      const dLatIn = (distIn * Math.cos(angleIn)) / 111111;
+      const dLonIn = (distIn * Math.sin(angleIn)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
 
       state.liveDiamonds[id()] = {
         lat: playerPos.lat + dLatIn,
@@ -297,11 +321,21 @@ const Diamonds = (() => {
     onCollect = callbacks.onCollect || onCollect;
     onDenied = callbacks.onDenied || onDenied;
     pruneExpired();
+
+    // Initial Horizon Seed: If world has few diamonds, seed 12-16 immediately!
+    const state = Store.get();
+    const curCount = Object.keys(state.liveDiamonds || {}).length;
+    if (curCount < 12 && playerPos) {
+      for (let i = curCount; i < 16; i++) {
+        trySpawn();
+      }
+    }
+
     renderAll();
 
     // Regular spawn ticker
     if (spawnTimer) clearInterval(spawnTimer);
-    spawnTimer = setInterval(trySpawn, CONFIG.DIAMOND_SPAWN_CHECK_MS || 2 * 60 * 1000);
+    spawnTimer = setInterval(trySpawn, CONFIG.DIAMOND_SPAWN_CHECK_MS || 25000);
   }
 
   let lastPosUpdate = 0;
