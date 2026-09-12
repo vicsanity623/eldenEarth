@@ -1,5 +1,6 @@
 // ============================================================
 // Elden Earth — diamonds (Mapbox GL JS 3D Native Engine)
+// Guaranteed 360° Horizon Field & Couch Play Spawner
 // ============================================================
 const Diamonds = (() => {
   let map = null;
@@ -8,24 +9,6 @@ const Diamonds = (() => {
   let onCollect = () => {};
   let onDenied = () => {};
   let spawnTimer = null;
-  
-  // Vector Tile Water Detection: Prevents diamonds from spawning in oceans, bays, or lakes
-  function isPointInWater(lat, lon) {
-    if (!map) return false;
-    try {
-      const pt = map.project([lon, lat]);
-      // Query MapLibre's vector water layers at these screen coordinates
-      const waterLayers = (map.getStyle().layers || [])
-        .map(l => l.id)
-        .filter(id => id.includes("water") || id.includes("ocean") || id.includes("lake"));
-
-      if (waterLayers.length === 0) return false;
-      const hits = map.queryRenderedFeatures(pt, { layers: waterLayers });
-      return hits.length > 0;
-    } catch (e) {
-      return false;
-    }
-  }
 
   // Floating Combat Text Helper
   function spawnFloatingText(x, y, htmlContent) {
@@ -95,7 +78,7 @@ const Diamonds = (() => {
     setTimeout(() => container.remove(), 700);
   }
 
-  // Lightweight GPU-Accelerated 3D Gem (Zero Duplicate Shader Overhead)
+  // Lightweight GPU-Accelerated 3D Gem
   function createGemElement(dim, did) {
     const el = document.createElement("div");
     el.className = "diamond-3d-wrapper" + (dim ? " far" : "");
@@ -131,13 +114,13 @@ const Diamonds = (() => {
 
   function withinCollectRange(lat, lon) {
     if (!playerPos) return false;
-    return Geo.haversine(playerPos.lat, playerPos.lon, lat, lon) <= CONFIG.DIAMOND_COLLECT_RADIUS_METERS;
+    return Geo.haversine(playerPos.lat, playerPos.lon, lat, lon) <= (CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75);
   }
 
   function renderAll() {
-    // Battery Saver: Skip marker rendering if phone is in pocket or map not loaded
     if (!map || document.hidden) return;
     const state = Store.get();
+    if (!state.liveDiamonds) state.liveDiamonds = {};
     const live = state.liveDiamonds;
 
     // Remove stale markers
@@ -148,9 +131,7 @@ const Diamonds = (() => {
       }
     }
 
-    // Add or update markers
     const collected = new Set(state.collectedDiamondIds || []);
-    const bounds = map.getBounds(); // Get active screen viewport
 
     for (const did in live) {
       if (collected.has(did)) {
@@ -159,10 +140,13 @@ const Diamonds = (() => {
       }
       const d = live[did];
 
-      // Viewport Culling: Skip rendering if diamond is off-screen (Saves dozens of CSS loops!)
-      if (bounds && !bounds.contains([d.lon, d.lat])) {
-        if (markers[did]) { markers[did].remove(); delete markers[did]; }
-        continue;
+      // Keep all diamonds within 1,500m visible on the 3D horizon
+      if (playerPos) {
+        const distToPlayer = Geo.haversine(playerPos.lat, playerPos.lon, d.lat, d.lon);
+        if (distToPlayer > 1500) {
+          if (markers[did]) { markers[did].remove(); delete markers[did]; }
+          continue;
+        }
       }
 
       const dim = !withinCollectRange(d.lat, d.lon);
@@ -205,10 +189,8 @@ const Diamonds = (() => {
       spawnFlyingGemToHUD(pt.x, pt.y);
     }
 
-    // Blacklist this diamond ID forever so no cloud sync or reload can ever restore it
     if (!state.collectedDiamondIds) state.collectedDiamondIds = [];
     state.collectedDiamondIds.push(did);
-    // Keep list capped at recent 100 IDs
     if (state.collectedDiamondIds.length > 100) state.collectedDiamondIds.shift();
 
     delete state.liveDiamonds[did];
@@ -223,13 +205,55 @@ const Diamonds = (() => {
     if (!state.liveDiamonds) state.liveDiamonds = {};
     const now = Date.now();
     let changed = false;
+
     for (const did in state.liveDiamonds) {
-      if (now - state.liveDiamonds[did].spawnedAt > CONFIG.DIAMOND_LIFETIME_MS) {
+      const d = state.liveDiamonds[did];
+      // 1. Expire diamonds older than 30 mins
+      const isExpired = (now - d.spawnedAt > (CONFIG.DIAMOND_LIFETIME_MS || 30 * 60 * 1000));
+      // 2. Purge old ghost diamonds located > 1.5km away from current GPS
+      const isTooFar = playerPos && (Geo.haversine(playerPos.lat, playerPos.lon, d.lat, d.lon) > 1500);
+
+      if (isExpired || isTooFar) {
+        if (markers[did]) { markers[did].remove(); delete markers[did]; }
         delete state.liveDiamonds[did];
         changed = true;
       }
     }
     if (changed) Store.save();
+  }
+
+  // Guaranteed Horizon Seeder: Instantly spawns 24 diamonds across 3 visible street layers
+  function seedHorizonBatch(targetCount = 24) {
+    if (!playerPos) return;
+    const state = Store.get();
+    if (!state.liveDiamonds) state.liveDiamonds = {};
+    pruneExpired();
+
+    const curCount = Object.keys(state.liveDiamonds).length;
+    if (curCount >= targetCount) return;
+
+    const now = Date.now();
+    const collectRadius = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
+
+    for (let i = curCount; i < targetCount; i++) {
+      // 3-Layered Spread: 1/3 Near (95-250m), 1/3 Mid (260-550m), 1/3 Far (560-1100m)
+      let minD, maxD;
+      if (i % 3 === 0) {
+        minD = collectRadius + 20; maxD = 250;
+      } else if (i % 3 === 1) {
+        minD = 260; maxD = 550;
+      } else {
+        minD = 560; maxD = 1100;
+      }
+
+      const pt = Geo.randomPointInRadius(playerPos.lat, playerPos.lon, maxD, minD);
+      const newId = id();
+      state.liveDiamonds[newId] = { lat: pt.lat, lon: pt.lon, spawnedAt: now };
+    }
+
+    state.lastDiamondSpawn = now;
+    Store.save();
+    renderAll();
   }
 
   function trySpawn() {
@@ -265,46 +289,20 @@ const Diamonds = (() => {
 
     let spawnedAny = false;
 
-    // --- TRACK 1: Outer Neighborhood Diamond Field (Water-Filtered!) ---
+    // Track 1: Outer Neighborhood Spawner (Guaranteed point generation)
     if (diamondsOutside < (MAX_ACTIVE - 2)) {
-      let attempts = 0;
-      let targetPt = null;
-
-      // Re-roll up to 5 times if point lands in an ocean, bay, or lake!
-      while (attempts < 5) {
-        attempts++;
-        const angle = Math.random() * Math.PI * 2;
-        const dist = collectRadius + 30 + Math.random() * (spawnRadius - collectRadius - 30);
-        const dLat = (dist * Math.cos(angle)) / 111111;
-        const dLon = (dist * Math.sin(angle)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
-        const candLat = playerPos.lat + dLat;
-        const candLon = playerPos.lon + dLon;
-
-        if (!isPointInWater(candLat, candLon)) {
-          targetPt = { lat: candLat, lon: candLon };
-          break;
-        }
-      }
-
-      if (targetPt) {
-        state.liveDiamonds[id()] = { lat: targetPt.lat, lon: targetPt.lon, spawnedAt: now };
-        spawnedAny = true;
-      }
+      const ptOut = Geo.randomPointInRadius(playerPos.lat, playerPos.lon, spawnRadius, collectRadius + 25);
+      const newId = id();
+      state.liveDiamonds[newId] = { lat: ptOut.lat, lon: ptOut.lon, spawnedAt: now };
+      spawnedAny = true;
     }
 
-    // --- TRACK 2: Inner Circle Couch Spawn (Up to 2 per 8-minute wave) ---
+    // Track 2: Inner Circle Couch Spawner
     const canSpawnInner = (state.innerWaveSpawns < 2) && (diamondsInside < 2);
     if (canSpawnInner) {
-      const angleIn = Math.random() * Math.PI * 2;
-      const distIn = 15 + Math.random() * (collectRadius - 30);
-      const dLatIn = (distIn * Math.cos(angleIn)) / 111111;
-      const dLonIn = (distIn * Math.sin(angleIn)) / (111111 * Math.cos((playerPos.lat * Math.PI) / 180));
-
-      state.liveDiamonds[id()] = {
-        lat: playerPos.lat + dLatIn,
-        lon: playerPos.lon + dLonIn,
-        spawnedAt: now
-      };
+      const ptIn = Geo.randomPointInRadius(playerPos.lat, playerPos.lon, collectRadius - 20, 15);
+      const newId = id();
+      state.liveDiamonds[newId] = { lat: ptIn.lat, lon: ptIn.lon, spawnedAt: now };
       state.innerWaveSpawns = (state.innerWaveSpawns || 0) + 1;
       spawnedAny = true;
     }
@@ -321,19 +319,8 @@ const Diamonds = (() => {
     onCollect = callbacks.onCollect || onCollect;
     onDenied = callbacks.onDenied || onDenied;
     pruneExpired();
-
-    // Initial Horizon Seed: If world has few diamonds, seed 12-16 immediately!
-    const state = Store.get();
-    const curCount = Object.keys(state.liveDiamonds || {}).length;
-    if (curCount < 12 && playerPos) {
-      for (let i = curCount; i < 16; i++) {
-        trySpawn();
-      }
-    }
-
     renderAll();
 
-    // Regular spawn ticker
     if (spawnTimer) clearInterval(spawnTimer);
     spawnTimer = setInterval(trySpawn, CONFIG.DIAMOND_SPAWN_CHECK_MS || 25000);
   }
@@ -345,20 +332,36 @@ const Diamonds = (() => {
     const now = Date.now();
     playerPos = { lat, lon };
 
+    // 1. Prune ghost diamonds outside 1.5km
+    pruneExpired();
+
+    // 2. Count nearby live diamonds
+    const state = Store.get();
+    let nearbyCount = 0;
+    for (const did in (state.liveDiamonds || {})) {
+      const d = state.liveDiamonds[did];
+      if (Geo.haversine(lat, lon, d.lat, d.lon) <= 1200) {
+        nearbyCount++;
+      }
+    }
+
+    // 3. Immediately seed 24 diamonds if world is sparse!
+    if (nearbyCount < 18) {
+      seedHorizonBatch(24);
+    }
+
     const storedPosition = Store.get().lastDiamondPlayerPosition;
     const movedDistance = storedPosition
       ? Geo.haversine(storedPosition.lat, storedPosition.lon, lat, lon)
       : Infinity;
     if (!storedPosition || movedDistance >= (CONFIG.DIAMOND_MOVEMENT_THRESHOLD_METERS || 10)) {
-      const state = Store.get();
       state.lastDiamondMovementAt = now;
       state.lastDiamondPlayerPosition = { lat, lon };
       Store.save();
     }
 
-    // Throttle checks: Only re-render if moved > 2 meters or 3 seconds elapsed
+    // 4. Update markers & collection proximity
     const distMoved = lastRenderPos ? Geo.haversine(lastRenderPos.lat, lastRenderPos.lon, lat, lon) : 999;
-
     if (distMoved > 2 || (now - lastPosUpdate > 3000)) {
       lastPosUpdate = now;
       lastRenderPos = { lat, lon };
