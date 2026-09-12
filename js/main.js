@@ -601,32 +601,6 @@
           }
         });
 
-        map.addSource("player-wave-source", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] }
-        });
-
-        map.addLayer({
-          id: "player-wave-fill",
-          type: "fill",
-          source: "player-wave-source",
-          paint: {
-            "fill-color": "#4fd6c4",
-            "fill-opacity": 0.12
-          }
-        });
-
-        map.addLayer({
-          id: "player-wave-line",
-          type: "line",
-          source: "player-wave-source",
-          paint: {
-            "line-color": "#4fd6c4",
-            "line-width": 2,
-            "line-opacity": 0.6
-          }
-        });
-
         map.addLayer({
           id: "player-sonar-line",
           type: "line",
