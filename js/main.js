@@ -1504,19 +1504,17 @@
       let lastAdRefreshTime = Date.now();
 
       function refreshAd() {
-        if (document.hidden) return; // Never refresh in background
+        if (document.hidden) return;
 
         try {
           const ins = adContainer.querySelector("ins.adsbygoogle");
           if (ins) {
-            // 1. Clear out Google's previous iframe
-            ins.innerHTML = "";
-            // 2. Remove status attribute so AdSense re-processes the slot cleanly (Prevents TagError)
-            ins.removeAttribute("data-adsbygoogle-status");
+             // Google documentation recommends clearing the innerHTML 
+             // and pushing to the global queue again
+             (window.adsbygoogle = window.adsbygoogle || []).push({});
+             lastAdRefreshTime = Date.now();
+             console.log("[AdSense] Refreshed banner successfully.");
           }
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
-          lastAdRefreshTime = Date.now();
-          console.log("[AdSense] Refreshed bottom treasury banner successfully.");
         } catch (e) {
           console.warn("[AdSense] Refresh notice:", e);
         }
