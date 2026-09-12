@@ -371,9 +371,18 @@
         if (document.hidden) return;
 
         const { latitude, longitude } = pos.coords;
-        // Only trigger heavy map/character updates if player actually moved > 1.5 meters
+
         const distMoved = Geo.haversine(lastProcessedLat, lastProcessedLon, latitude, longitude);
         if (distMoved > 1.5 || lastProcessedLat === 0) {
+          // Calculate exact walking direction vector (N, S, E, W)
+          if (lastProcessedLat !== 0 && typeof Character3D !== "undefined" && Character3D.setHeading) {
+            const y = Math.sin((longitude - lastProcessedLon) * Math.PI / 180) * Math.cos(latitude * Math.PI / 180);
+            const x = Math.cos(lastProcessedLat * Math.PI / 180) * Math.sin(latitude * Math.PI / 180) -
+                      Math.sin(lastProcessedLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) * Math.cos((longitude - lastProcessedLon) * Math.PI / 180);
+            const walkBearingRad = Math.atan2(y, x);
+            Character3D.setHeading(walkBearingRad);
+          }
+
           lastProcessedLat = latitude;
           lastProcessedLon = longitude;
           handlePosition(pos.coords);
@@ -633,6 +642,10 @@
         onDenied: () => showToast("Too far — walk closer to collect it."),
       });
       Diamonds.setPlayerPosition(currentPos.lat, currentPos.lon);
+      // Hoist 3D Character to top of all map layers so it always renders above ground plots!
+      if (map.getLayer("3d-player-character")) {
+        map.moveLayer("3d-player-character");
+      }
     }
 
     map.on("load", () => {
@@ -1615,6 +1628,19 @@
         location.reload();
       }
     });
+  }
+  
+  // Hardware Compass: Rotates 3D Character when turning your body in place
+  if (typeof window !== "undefined" && window.DeviceOrientationEvent) {
+    window.addEventListener("deviceorientation", (e) => {
+      if (document.hidden) return;
+      const compassHeading = e.webkitCompassHeading || (e.alpha ? 360 - e.alpha : null);
+      if (compassHeading !== null && !isNaN(compassHeading)) {
+        if (typeof Character3D !== "undefined" && Character3D.setHeading) {
+          Character3D.setHeading((compassHeading * Math.PI) / 180);
+        }
+      }
+    }, { passive: true });
   }
 
   // ---------------- Boot ----------------
