@@ -221,21 +221,12 @@ const Diamonds = (() => {
     pruneExpired();
 
     const now = Date.now();
-    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 2 * 60 * 1000;
-
-    // Do not accumulate diamonds around a player who has stopped moving.
-    if (state.lastDiamondMovementAt &&
-        now - state.lastDiamondMovementAt >= (CONFIG.DIAMOND_IDLE_TIMEOUT_MS || 120 * 60 * 1000)) {
-      return;
-    }
+    const spawnInterval = CONFIG.DIAMOND_SPAWN_CHECK_MS || 35000;
 
     // Cooldown gate: Prevent force-close reload exploit
     if (state.lastDiamondSpawn && (now - state.lastDiamondSpawn < spawnInterval)) {
       return;
     }
-
-    const count = Object.keys(state.liveDiamonds).length;
-    if (count >= CONFIG.DIAMOND_MAX_ACTIVE) return;
 
     // --- Strict 8-Minute Couch Wave Cooldown Engine ---
     const collectRadius = CONFIG.DIAMOND_COLLECT_RADIUS_METERS || 75;
@@ -249,7 +240,9 @@ const Diamonds = (() => {
     }
 
     let diamondsInside = 0;
+    let totalCount = 0;
     for (const did in state.liveDiamonds) {
+      totalCount++;
       if (withinCollectRange(state.liveDiamonds[did].lat, state.liveDiamonds[did].lon)) {
         diamondsInside++;
       }
@@ -257,6 +250,12 @@ const Diamonds = (() => {
 
     // Strict Rule: Can ONLY spawn inside if under 2 for this wave AND fewer than 2 exist inside
     const canSpawnInner = (state.innerWaveSpawns < 2) && (diamondsInside < 2);
+
+    // Only block if we CANNOT spawn an inner diamond AND world cap is full!
+    const maxActive = CONFIG.DIAMOND_MAX_ACTIVE || 18;
+    if (!canSpawnInner && totalCount >= maxActive) {
+      return;
+    }
 
     const angle = Math.random() * Math.PI * 2;
     let dist;
