@@ -650,6 +650,17 @@
 
     map.on("load", () => {
       setupGameLayers();
+
+      // Atmospheric Horizon Fog (Atlas Earth Style Sky/Horizon Blend)
+      try {
+        if (map.setFog) {
+          map.setFog({
+            range: [0.8, 8],
+            color: "#0c131c",
+            "horizon-blend": 0.3
+          });
+        }
+      } catch (e) {}
     });
 
     Wheel.init();
