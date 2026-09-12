@@ -1,4 +1,4 @@
-# 🌍 Elden Earth
+# 🌍 Elden Earth 💎Early Access💎
 
 A real-world geo-location territory-claiming and idle income game. Walk the real world, collect diamonds, spin the fortune wheel for Elden Bucks (EB), claim real 10×10 ft tiles beneath your feet, and earn simulated passive rent ($USD) every fraction of a second.
 

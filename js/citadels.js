@@ -865,8 +865,9 @@ const Citadels = (() => {
             }
 
             if (typeof Feed !== "undefined") {
-              Feed.broadcast("land", {
-                rarity: `✨ ${cit.creatorName} evolved their Hold to a ${CONFIG.CITADEL_RARITIES[newRarity].label}!`,
+              Feed.broadcast("citadel_evolve", {
+                creatorName: cit.creatorName,
+                tierName: CONFIG.CITADEL_RARITIES[newRarity].label,
                 location: "the Realm 🌐"
               });
             }
