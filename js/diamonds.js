@@ -78,28 +78,45 @@ const Diamonds = (() => {
     setTimeout(() => container.remove(), 700);
   }
 
-  // Lightweight GPU-Accelerated 3D Gem
+  // DOM-Level LOD: Far diamonds have ZERO sub-tags (Eliminates 100+ Web Animations in DevTools!)
   function createGemElement(dim, did) {
     const el = document.createElement("div");
     el.className = "diamond-3d-wrapper" + (dim ? " far" : "");
 
-    const randomDuration = (2.8 + Math.random() * 0.8).toFixed(2) + "s";
-    const randomDelay = (-Math.random() * 3.0).toFixed(2) + "s";
-
-    el.innerHTML = `
-      <div class="gem-anchor" style="--hover-dur:${randomDuration}; --hover-delay:${randomDelay};">
-        <div class="gem-shadow"></div>
-        <div class="gem-3d">
-          <svg viewBox="0 0 32 38" class="gem-svg">
-            <polygon points="16,2 29,12 16,16 3,12" fill="#a8f5ec"/>
-            <polygon points="3,12 16,16 16,36" fill="#1d7a6e"/>
-            <polygon points="29,12 16,16 16,36" fill="#4fd6c4"/>
-            <polygon points="16,2 20,8 16,16 12,8" fill="rgba(255,255,255,0.85)"/>
-          </svg>
-          <div class="gem-sparkle-1">✦</div>
+    if (dim) {
+      // 🚀 FAR DIAMOND: Pure static SVG crystal (0 animations, 0 shadows, 0 sparkles registered!)
+      el.innerHTML = `
+        <div class="gem-anchor">
+          <div class="gem-3d static-crystal">
+            <svg viewBox="0 0 32 38" class="gem-svg">
+              <polygon points="16,2 29,12 16,16 3,12" fill="#a8f5ec"/>
+              <polygon points="3,12 16,16 16,36" fill="#1d7a6e"/>
+              <polygon points="29,12 16,16 16,36" fill="#4fd6c4"/>
+              <polygon points="16,2 20,8 16,16 12,8" fill="rgba(255,255,255,0.85)"/>
+            </svg>
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    } else {
+      // 💎 NEAR DIAMOND: Full rich 3D hover, shadow pulse & star sparkles!
+      const randomDuration = (2.8 + Math.random() * 0.8).toFixed(2) + "s";
+      const randomDelay = (-Math.random() * 3.0).toFixed(2) + "s";
+
+      el.innerHTML = `
+        <div class="gem-anchor" style="--hover-dur:${randomDuration}; --hover-delay:${randomDelay};">
+          <div class="gem-shadow"></div>
+          <div class="gem-3d">
+            <svg viewBox="0 0 32 38" class="gem-svg">
+              <polygon points="16,2 29,12 16,16 3,12" fill="#a8f5ec"/>
+              <polygon points="3,12 16,16 16,36" fill="#1d7a6e"/>
+              <polygon points="29,12 16,16 16,36" fill="#4fd6c4"/>
+              <polygon points="16,2 20,8 16,16 12,8" fill="rgba(255,255,255,0.85)"/>
+            </svg>
+            <div class="gem-sparkle-1">✦</div>
+          </div>
+        </div>
+      `;
+    }
 
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -153,11 +170,15 @@ const Diamonds = (() => {
 
       if (markers[did]) {
         const el = markers[did].getElement();
-        if (el) {
-          if (dim) el.classList.add("far");
-          else el.classList.remove("far");
+        const wasDim = el ? el.classList.contains("far") : false;
+        // If proximity state changed (e.g. player walked into reach), rebuild DOM to attach/detach animations cleanly
+        if (wasDim !== dim) {
+          markers[did].remove();
+          delete markers[did];
         }
-      } else {
+      }
+
+      if (!markers[did]) {
         const el = createGemElement(dim, did);
         const m = new mapboxgl.Marker({
           element: el,
