@@ -180,11 +180,11 @@ const Leaderboard = (() => {
       }
     }
 
-    // Sort Global with Highest Passive Rent Tie-Breaker (Descending: highest cash first)
+    // Sort Global with Highest Passive Rent Tie-Breaker (Descending: highest lifetime rent first)
     const sortedGlobal = Object.values(playerStats).sort((a, b) => {
       const plotDiff = (b.plotsCount || 0) - (a.plotsCount || 0);
       if (plotDiff !== 0) return plotDiff;
-      return (Number(b.cash) || 0) - (Number(a.cash) || 0);
+      return (Number(b.lifetimeRent || b.cash) || 0) - (Number(a.lifetimeRent || a.cash) || 0);
     });
     const globalLordId = sortedGlobal.length > 0 ? sortedGlobal[0].id : null;
 
