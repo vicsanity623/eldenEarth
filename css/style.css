@@ -1303,9 +1303,17 @@ html,body{
   border: none !important;
   pointer-events: auto;
 }
+/* Distant Diamonds: Sparkle like shining beacons on the horizon */
 .diamond-3d-wrapper.far {
-  opacity: 0.55;
-  filter: grayscale(40%);
+  opacity: 0.85 !important; /* Clearly visible on the horizon */
+  filter: drop-shadow(0 0 6px rgba(79, 214, 196, 0.7));
+}
+
+.diamond-3d-wrapper.far .gem-sparkle-1 {
+  font-size: 14px;
+  color: #a8f5ec;
+  text-shadow: 0 0 8px #4fd6c4, 0 0 14px #fff;
+  animation: sparkleTwinkle 1.8s infinite ease-in-out;
 }
 
 .gem-anchor {
