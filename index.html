@@ -89,7 +89,7 @@
     <div class="hero-balance-card" id="hero-balance-card">
       <div class="hero-top-line">
         <div class="hero-brand-title">
-          <span class="hero-brand-gem">◆</span> ELDEN EARTH <span class="hero-version-tag">v0.1.4.7</span>
+          <span class="hero-brand-gem">◆</span> ELDEN EARTH <span class="hero-version-tag">v0.1.4.8</span>
         </div>
         <div id="boost-timer-badge" class="boost-timer-badge hidden">⚡ 30X BOOST <span id="boost-countdown">00:00:00</span></div>
       </div>
@@ -102,22 +102,22 @@
     <div class="substats-row">
       <div class="player-chip">
         <span id="player-avatar">🙂</span>
-        <span id="player-name">Traveler</span>
+        <span id="player-name">Loading...</span>
       </div>
 
       <div class="sub-stat">
         <span class="stat-label">Elden Bucks</span>
-        <span class="stat-value" id="stat-eb">150 EB</span>
+        <span class="stat-value" id="stat-eb">-- EB</span>
       </div>
 
       <div class="sub-stat">
         <span class="stat-label">Diamonds</span>
-        <span class="stat-value" id="stat-diamonds">0 ◆</span>
+        <span class="stat-value" id="stat-diamonds">-- ◆</span>
       </div>
 
       <div class="sub-stat">
         <span class="stat-label">Income</span>
-        <span class="stat-value" id="stat-rate">$0.00000000/s</span>
+        <span class="stat-value" id="stat-rate">$-.--------/s</span>
       </div>
 
       <button id="menu-btn" class="icon-btn menu-btn-wrap" aria-label="Menu">
@@ -268,8 +268,8 @@
     <button class="close-btn" data-close="land-modal">✕</button>
     <h2>My Land</h2>
     <div class="land-stats">
-      <div class="land-stat"><span id="land-count">0</span><label>Plots owned</label></div>
-      <div class="land-stat"><span id="land-rate">0.00000000</span><label>EB / sec</label></div>
+      <div class="land-stat"><span id="land-count">-</span><label>Plots owned</label></div>
+      <div class="land-stat"><span id="land-rate">-.--------</span><label>EB / sec</label></div>
     </div>
     <div class="rarity-legend">
       <div><i class="swatch common"></i>Common (<span id="count-common">0</span>) — <span id="weight-common">0</span>% — $<span id="rate-common">0</span>/s</div>
@@ -278,6 +278,7 @@
       <div><i class="swatch legendary"></i>Legendary (<span id="count-legendary">0</span>) — <span id="weight-legendary">0</span>% — $<span id="rate-legendary">0</span>/s</div>
     </div>
     <p class="fine-print">Tap any unclaimed tile on the map (zoom in close) to buy it for 100 EB. Rarity is random and balanced.</p>
+    <p class="fine-print">Tap on a claimed land plot to relocate. (pick up) To see your (Bag) tap on any unclaimed tile.</p>
   </div>
 </div>
 
@@ -514,7 +515,7 @@
         <div class="guide-card-icon">💎</div>
         <div class="guide-card-text">
           <strong>1. Collect 3D Diamonds by:</strong>
-          <span>Waliking, Mining, and Spinning the wheel!</span>
+          <span>Walking, Mining, and Spinning the wheel!</span>
         </div>
       </div>
 
