@@ -280,6 +280,13 @@ const Grid = (() => {
     const centerLat = (corners[0][0] + corners[2][0]) / 2;
     const centerLon = (corners[0][1] + corners[2][1]) / 2;
     const territory = await Geo.getTerritoryInfo(centerLat, centerLon);
+    // ⛔ REGION EMBARGO: Block purchases in restricted countries
+    const cCode = (territory.country_code || "").toLowerCase();
+    const cName = (territory.country || "").toLowerCase();
+    if (cCode === "kp" || cName.includes("north korea") || cName.includes("dprk") || isRestrictedRegion(centerLat, centerLon)) {
+      showToast("⛔ Territory Embargo: Land claims are prohibited in this jurisdiction.", 4000);
+      return; // Abort purchase!
+    }
 
     if (map) {
       const pt = map.project([centerLon, centerLat]);
