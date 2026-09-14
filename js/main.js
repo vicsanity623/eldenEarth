@@ -12,6 +12,12 @@
   let isUserInteracting = false;
 
   const el = (id) => document.getElementById(id);
+  
+  // Physical Region Embargo Guard: Permanent Geofence Lockdown
+  function isRestrictedRegion(lat, lon) {
+    // North Korea Bounding Box: 37.6°N to 43.1°N, 124.1°E to 130.7°E
+    return (lat >= 37.6 && lat <= 43.1 && lon >= 124.1 && lon <= 130.7);
+  }
 
   function showToast(msg, ms = 2200) {
     const t = el("toast");
@@ -522,7 +528,17 @@
   }
   
   // ---------------- 3D Map / Game Launch with Auto-Fallback ----------------
-  function launchGame(coords) {
+  if (coords && isRestrictedRegion(coords.latitude, coords.longitude)) {
+      document.body.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0b0709;color:#ff4757;font-family:sans-serif;text-align:center;padding:24px;">
+          <div style="font-size:64px;margin-bottom:16px;">⛔</div>
+          <h1 style="font-size:24px;margin-bottom:8px;">Territory Restricted</h1>
+          <p style="color:#ff6b81;max-width:380px;line-height:1.5;">Access to the Elden Realm is permanently prohibited in this jurisdiction.</p>
+        </div>
+      `;
+      return; // Halt all game execution!
+    }
+    
     document.body.classList.toggle("no-shake", Boolean(Store.get()?.disableShake));
     currentPos = { lat: coords.latitude, lon: coords.longitude };
     el("locate-screen")?.classList.add("hidden");
