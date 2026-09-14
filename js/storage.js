@@ -252,6 +252,27 @@ const Store = (() => {
           officialPlotIds.add(pDoc.id);
         });
       }
+      
+      // ⛔ PLOT INTEGRITY & TERRITORY SPOOF SCANNER
+      if (state.plots) {
+        for (const tid in state.plots) {
+          const plot = state.plots[tid];
+          // Check if any plot exists in North Korea bounding box or country KP
+          const isIllegalCoord = (plot.lat && plot.lon && (plot.lat >= 37.6 && plot.lat <= 43.1 && plot.lon >= 124.1 && plot.lon <= 130.7));
+          const isIllegalCountry = (plot.country && (plot.country.toLowerCase().includes("north korea") || plot.country.toLowerCase().includes("dprk")));
+          
+          if (isIllegalCoord || isIllegalCountry) {
+            console.error("[Security] Illegal territory plot detected! Executing ban...");
+            if (typeof triggerInstantBan === "function") {
+              triggerInstantBan("Possession of illegal parcels in restricted territory");
+            } else {
+              localStorage.clear();
+              location.reload();
+            }
+            return null;
+          }
+        }
+      }
 
       // 3. TRUE-OWNERSHIP AUDITOR: Untangle merged accounts!
       // If the local/cloud save claims a plot that isn't officially registered to this ownerId
