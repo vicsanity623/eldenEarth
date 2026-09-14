@@ -69,6 +69,30 @@
     throw new Error(`Account Terminated: ${reason}`);
   }
 
+  // ⚠️ 3-STRIKE PROGRESSIVE ANTI-CHEAT CONTROLLER
+  function recordAntiCheatStrike(reason) {
+    const state = Store.get();
+    const currentStrikes = (Number(state.antiCheatStrikes) || 0) + 1;
+    state.antiCheatStrikes = currentStrikes;
+    Store.save(true);
+
+    console.warn(`[AntiCheat] Infraction detected: ${reason} (Strike ${currentStrikes}/3)`);
+
+    if (currentStrikes >= 3) {
+      triggerInstantBan(`3rd Anti-Cheat Strike: Repeated GPS Spoofing (${reason})`);
+      return;
+    }
+
+    const warnScreen = el("anticheat-warning-screen");
+    const strikeBadge = el("strike-badge-num");
+    if (strikeBadge) strikeBadge.textContent = `STRIKE ${currentStrikes} OF 3`;
+
+    if (warnScreen) {
+      warnScreen.classList.remove("hidden");
+      warnScreen.style.display = "flex";
+    }
+  }
+
   function showToast(msg, ms = 2200) {
     const t = el("toast");
     t.textContent = msg;
@@ -480,6 +504,7 @@
   // High-Efficiency GPS Hardware Controller (Saves 40% Battery)
   let lastProcessedLat = 0;
   let lastProcessedLon = 0;
+  let lastGpsTimestamp = 0;
 
   function beginWatch() {
     if (!navigator.geolocation) return;
@@ -497,10 +522,24 @@
           triggerInstantBan("GPS Coordinates in Restricted Territory (North Korea)");
           return;
         }
+        // 🚀 IMPOSSIBLE SPEED TRAP: Detects GPS Spoofing (>900 km/h teleport jumps)
+        const nowTime = Date.now();
+        if (lastProcessedLat !== 0 && lastGpsTimestamp !== 0) {
+          const distKm = Geo.haversine(lastProcessedLat, lastProcessedLon, latitude, longitude) / 1000;
+          const timeHours = (nowTime - lastGpsTimestamp) / 3600000;
+          const speedKmh = timeHours > 0 ? (distKm / timeHours) : 0;
+
+          if (distKm > 5 && speedKmh > 900) {
+            lastGpsTimestamp = nowTime;
+            recordAntiCheatStrike(`Impossible location teleport jump (${Math.round(distKm)}km in seconds)`);
+            return;
+          }
+        }
+        lastGpsTimestamp = nowTime;
 
         const distMoved = Geo.haversine(lastProcessedLat, lastProcessedLon, latitude, longitude);
         if (distMoved > 1.5 || lastProcessedLat === 0) {
-          // Calculate exact walking direction vector (N, S, E, W)
+          // Calculate walking vector
           if (lastProcessedLat !== 0 && typeof Character3D !== "undefined" && Character3D.setHeading) {
             const y = Math.sin((longitude - lastProcessedLon) * Math.PI / 180) * Math.cos(latitude * Math.PI / 180);
             const x = Math.cos(lastProcessedLat * Math.PI / 180) * Math.sin(latitude * Math.PI / 180) -
@@ -584,7 +623,8 @@
   }
   
   // ---------------- 3D Map / Game Launch with Auto-Fallback ----------------
-  if (coords && isRestrictedRegion(coords.latitude, coords.longitude)) {
+  function launchGame(coords) {
+    if (coords && isRestrictedRegion(coords.latitude, coords.longitude)) {
       document.body.innerHTML = `
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0b0709;color:#ff4757;font-family:sans-serif;text-align:center;padding:24px;">
           <div style="font-size:64px;margin-bottom:16px;">⛔</div>
