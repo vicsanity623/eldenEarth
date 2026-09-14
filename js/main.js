@@ -15,8 +15,58 @@
   
   // Physical Region Embargo Guard: Permanent Geofence Lockdown
   function isRestrictedRegion(lat, lon) {
+    if (lat === undefined || lon === undefined || isNaN(lat) || isNaN(lon)) return false;
     // North Korea Bounding Box: 37.6°N to 43.1°N, 124.1°E to 130.7°E
     return (lat >= 37.6 && lat <= 43.1 && lon >= 124.1 && lon <= 130.7);
+  }
+
+  // ⛔ UNIVERSAL ANTI-CHEAT & PERMANENT BAN HAMMER
+  function triggerInstantBan(reason = "GPS Spoofing & Severe Territory Violation") {
+    const state = Store.get();
+    const db = Store.getDb();
+    const myId = state?.player?.id;
+
+    console.error(`[AntiCheat] PERMANENT BAN EXECUTED: ${reason} (UID: ${myId})`);
+
+    // 1. Flag in Google Cloud Firestore Quarantine
+    if (db && myId) {
+      db.collection("banned_users").doc(myId).set({
+        banned: true,
+        reason: reason,
+        bannedAt: Date.now(),
+        playerName: state.player?.name || "Unknown"
+      }).catch(() => {});
+
+      db.collection("saves").doc(myId).set({
+        isBanned: true,
+        bannedReason: reason,
+        cash: 0,
+        eb: 0,
+        diamonds: 0,
+        plots: {}
+      }, { merge: true }).catch(() => {});
+    }
+
+    // 2. Wipe physical device storage completely
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch (e) {}
+
+    // 3. Freeze screen with permanent unclosable termination lockout
+    document.body.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#050203;color:#ff4757;font-family:sans-serif;text-align:center;padding:24px;z-index:999999999;">
+        <div style="font-size:76px;margin-bottom:16px;filter:drop-shadow(0 0 20px #ff4757);">⛔</div>
+        <h1 style="font-size:26px;margin-bottom:10px;letter-spacing:1px;">ACCOUNT PERMANENTLY TERMINATED</h1>
+        <p style="color:#ff6b81;max-width:420px;line-height:1.6;font-size:14px;margin-bottom:16px;">
+          This account has been permanently terminated and wiped for GPS spoofing and severe territory violations.
+        </p>
+        <span style="font-size:11px;color:#8fa3b8;">Violation: ${reason}</span>
+      </div>
+    `;
+
+    // 4. Terminate all JavaScript execution
+    throw new Error(`Account Terminated: ${reason}`);
   }
 
   function showToast(msg, ms = 2200) {
@@ -441,6 +491,12 @@
         if (document.hidden) return;
 
         const { latitude, longitude } = pos.coords;
+
+        // ⛔ LIVE GPS TRAP: Instant ban if coordinates ever enter restricted embargo territory!
+        if (isRestrictedRegion(latitude, longitude)) {
+          triggerInstantBan("GPS Coordinates in Restricted Territory (North Korea)");
+          return;
+        }
 
         const distMoved = Geo.haversine(lastProcessedLat, lastProcessedLon, latitude, longitude);
         if (distMoved > 1.5 || lastProcessedLat === 0) {
@@ -1377,7 +1433,7 @@
       if (el("extractor-lvl-badge")) el("extractor-lvl-badge").textContent = `Level ${lvl}`;
       if (el("extractor-next-timer")) el("extractor-next-timer").textContent = `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
       if (el("extractor-stored-count")) el("extractor-stored-count").innerHTML = `${state.extractor.stored} / ${maxStored} <span class="hud-gem-icon"></span>`;
-      if (el("extractor-next-perk")) el("extractor-next-perk").textContent = nextIsCapacity ? "Next: +1 Max Diamond Capacity" : "Next: -0.0001% Mining Time";
+      if (el("extractor-next-perk")) el("extractor-next-perk").textContent = nextIsCapacity ? "Next: +1 Max Diamond Capacity" : "Keep Upgrading for even more capacity!";
       
       // $1.00 Unlock Condition Check
       const upgradeBtn = el("upgrade-extractor-btn");
