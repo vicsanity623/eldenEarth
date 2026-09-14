@@ -34,6 +34,24 @@ const Auth = (() => {
       try {
         firebase.auth().onAuthStateChanged(async (user) => {
           if (user) {
+            // ⛔ BAN QUARANTINE CHECK: Block banned UIDs instantly
+            const db = Store.getDb();
+            if (db) {
+              const bannedDoc = await db.collection("banned_users").doc(user.uid).get();
+              if (bannedDoc.exists) {
+                localStorage.clear();
+                sessionStorage.clear();
+                document.body.innerHTML = `
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#050203;color:#ff4757;font-family:sans-serif;text-align:center;padding:24px;">
+                    <div style="font-size:76px;margin-bottom:16px;">⛔</div>
+                    <h1 style="font-size:26px;margin-bottom:10px;">ACCOUNT PERMANENTLY TERMINATED</h1>
+                    <p style="color:#ff6b81;max-width:420px;line-height:1.6;font-size:14px;">This account is permanently banned.</p>
+                  </div>
+                `;
+                return; // Stop boot!
+              }
+            }
+
             console.log(`[FirebaseAuth] Active session authenticated: ${user.uid} (${user.isAnonymous ? "Guest" : "Google"})`);
             
             const s = Store.get();
