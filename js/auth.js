@@ -4,13 +4,75 @@
 // ============================================================
 const Auth = (() => {
 
+  async function checkBan(uid, email) {
+    try {
+      const firestore = Store.getDb();
+      if (!firestore) return false;
+      const banDoc = await firestore.collection("banned_users").doc(uid).get();
+      if (banDoc.exists) {
+        const ban = banDoc.data();
+        console.warn(`[Auth] BANNED user attempted login: ${uid} (${email}) — reason: ${ban.reason || "none"}`);
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  async function logPlayerIP(uid, email) {
+    try {
+      const res = await fetch("https://api.ipify.org?format=json");
+      const data = await res.json();
+      const ip = data.ip;
+      const firestore = Store.getDb();
+      if (firestore && uid) {
+        await firestore.collection("player_ips").doc(uid).set({
+          uid: uid,
+          email: email || "",
+          ip: ip,
+          timestamp: Date.now(),
+          userAgent: navigator.userAgent
+        }, { merge: true });
+      }
+    } catch (e) {}
+  }
+
+  function showBannedScreen(reason) {
+    document.body.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0e17;color:#e8e8e8;font-family:system-ui;text-align:center;padding:20px;">
+        <div>
+          <h1 style="color:#ff4444;font-size:28px;margin-bottom:12px;">Account Suspended</h1>
+          <p style="color:#999;font-size:16px;margin-bottom:8px;">This account has been permanently banned from Elden Earth.</p>
+          <p style="color:#666;font-size:13px;">${reason ? "Reason: " + reason : "If you believe this is an error, contact us on Discord."}</p>
+          <a href="https://discord.gg/WJjyMJahZA" style="display:inline-block;margin-top:20px;padding:10px 24px;background:#5865F2;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;">Join Discord</a>
+        </div>
+      </div>`;
+  }
+
   function init(onSignedIn) {
     const slot = document.getElementById("g_id_signin_slot");
     let completedUid = null;
 
-    function completeSignIn(player, uid) {
+    async function completeSignIn(player, uid) {
       if (completedUid === uid) return;
       completedUid = uid;
+
+      const email = firebase.auth().currentUser?.email || "";
+      const banned = await checkBan(uid, email);
+      if (banned) {
+        const firestore = Store.getDb();
+        let reason = "";
+        if (firestore) {
+          try {
+            const snap = await firestore.collection("banned_users").doc(uid).get();
+            reason = snap.data()?.reason || "";
+          } catch (e) {}
+        }
+        showBannedScreen(reason);
+        firebase.auth().signOut();
+        return;
+      }
+
+      logPlayerIP(uid, email);
       onSignedIn(player);
     }
 
