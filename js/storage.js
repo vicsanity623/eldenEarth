@@ -40,11 +40,11 @@ const Store = (() => {
 
   function defaultState() {
     return {
-      player: { name: "Traveler", id: null, avatar: "🙂", model3d: "robot" },
+      player: { name: "Traveler", id: null, avatar: "🙂", model3d: "robot", freeSpins: 100, freeSpinsNoDiamondCost: true },
       cash: 0,
       lifetimeRent: 0,
-      eb: 1000,
-      diamonds: 50,
+      eb: 4000,
+      diamonds: 200,
       totalDividends: 0,
       plots: {},
       plotBag: {},
@@ -273,6 +273,7 @@ const Store = (() => {
         };
 
         state = Object.assign(defaultState(), cloudData);
+        state._gameVersion = (typeof CONFIG !== "undefined" && CONFIG.GAME_VERSION) || "0.0.0";
         state.calendar = mergedCalendar;
         if (cloudData.player) {
           state.player = Object.assign(defaultState().player, cloudData.player);
