@@ -1,5 +1,5 @@
 // Bump this version string whenever you deploy an update!
-const CACHE_NAME = 'elden-REALM-v9000000';
+const CACHE_NAME = 'elden-REALM-v01;
 
 const ASSETS_TO_CACHE = [
     './',
