@@ -12,6 +12,7 @@ const Store = (() => {
     try { sessionStorage.setItem("elden_sess_token", localSessionId); } catch (e) {}
   }
   let isSessionPaused = false;
+  let cloudSyncComplete = false;
 
   function getDb() {
     if (db) return db;
@@ -68,6 +69,18 @@ const Store = (() => {
       const raw = localStorage.getItem(KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
+
+        // --- VERSION GATE: Wipe stale localStorage from old patches ---
+        const savedVersion = parsed._gameVersion || "0.0.0";
+        const currentVersion = (typeof CONFIG !== "undefined" && CONFIG.GAME_VERSION) || "0.0.0";
+        if (savedVersion !== currentVersion) {
+          console.log(`[Store] Version mismatch (local=${savedVersion}, cloud=${currentVersion}). Clearing stale localStorage.`);
+          localStorage.removeItem(KEY);
+          state = defaultState();
+          state._gameVersion = currentVersion;
+          return state;
+        }
+
         state = Object.assign(defaultState(), parsed);
         if (parsed.player) {
           state.player = Object.assign(defaultState().player, parsed.player);
@@ -151,6 +164,7 @@ const Store = (() => {
   // Default to false for routine background tasks to protect Firebase quota
   function save(immediateCloud = false) {
     try {
+      state._gameVersion = (typeof CONFIG !== "undefined" && CONFIG.GAME_VERSION) || "0.0.0";
       localStorage.setItem(KEY, JSON.stringify(state));
       syncToCloudDebounced(immediateCloud);
     } catch (e) {
@@ -184,6 +198,7 @@ const Store = (() => {
   // BLOCKED for guest accounts - prevents cross-device conflicts
   function syncToCloud() {
     if (isSessionPaused) return;
+    if (!cloudSyncComplete) return; // Block until syncFromCloud completes
     // Block guest saves from syncing to cloud - guest data stays local only
     if (state && state.player && (!state.player.id || state.player.id.startsWith("guest-"))) {
       return;
@@ -314,6 +329,7 @@ const Store = (() => {
       });
 
       console.log(`[Cloud] Restored account for ${playerId} with ${Object.keys(state.plots || {}).length} plots.`);
+      cloudSyncComplete = true;
       return state;
     } catch (err) {
       console.warn("[Cloud] Load error:", err);

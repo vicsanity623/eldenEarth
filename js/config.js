@@ -3,6 +3,9 @@
 // Edit these values to tune the game or enable Google sign-in.
 // ============================================================
 const CONFIG = {
+  // --- Game Version (bump on every patch to auto-wipe stale localStorage) ---
+  GAME_VERSION: "0.1.8.13",
+
   // --- Map Tile Engine & Rate Limit Fallback ---
   // Set to true to bypass Mapbox completely and use unlimited 100% free OpenFreeMap
   USE_OPENFREEMAP_DIRECTLY: true,
