@@ -12,17 +12,17 @@ const CONFIG = {
   // Paste an OAuth 2.0 Web Client ID from https://console.cloud.google.com/apis/credentials
   // (Authorized JavaScript origin = your github.io URL) to enable "Sign in with Google".
   // Leave blank to only offer Guest (local storage) sign-in.
-  GOOGLE_CLIENT_ID: "419145784387-5d6u80k70dntrapul6bqefi71qr4ir2h.apps.googleusercontent.com",
+  GOOGLE_CLIENT_ID: "711924778312-k9fkaqr5fa95rl03m5i9mhr5agv4upeq.apps.googleusercontent.com",
 
   // --- Firebase Cloud Save Config ---
   FIREBASE_CONFIG: {
-    apiKey: "AIzaSyCISE7AQr-TnLDKmrEX5qxUD804UdkklMs",
-    authDomain: "eldenearthdev.firebaseapp.com",
-    projectId: "eldenearthdev",
-    storageBucket: "eldenearthdev.firebasestorage.app",
-    messagingSenderId: "419145784387",
-    appId: "1:419145784387:web:84c2e88916eb2c161d08f6",
-    measurementId: "G-5JRJDMN2Z0"
+    apiKey: "AIzaSyAf8u0qUQJaajJp4352-SrY7lIh8rNFPWY",
+    authDomain: "elden-earth.firebaseapp.com",
+    projectId: "elden-earth",
+    storageBucket: "elden-earth.firebasestorage.app",
+    messagingSenderId: "231253239262",
+    appId: "1:231253239262:web:3fa1ca28575fcade15e94f",
+    measurementId: "G-X24EB16156"
   },
   
   // --- Tile grid ---
