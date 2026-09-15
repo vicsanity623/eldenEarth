@@ -1,5 +1,5 @@
 // Bump this version string whenever you deploy an update!
-const CACHE_NAME = 'elden-REALM-v600000';
+const CACHE_NAME = 'elden-REALM-v600002';
 
 const ASSETS_TO_CACHE = [
     './',
@@ -30,7 +30,7 @@ const ASSETS_TO_CACHE = [
 
 // 1. Force Immediate Installation
 self.addEventListener('install', (e) => {
-    self.skipWaiting(); // Bypass waiting phase immediately
+    self.skipWaiting();
     e.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             return cache.addAll(ASSETS_TO_CACHE);
@@ -51,20 +51,18 @@ self.addEventListener('activate', (e) => {
                 })
             );
         }).then(() => {
-            return self.clients.claim(); // Take control of all active tabs immediately
+            return self.clients.claim();
         })
     );
 });
 
-// 3. Network-First Strategy (Always fetch fresh code first, cache fallback if offline)
+// 3. Network-First with cache-busting (bypasses browser HTTP cache entirely)
 self.addEventListener('fetch', (e) => {
     if (e.request.method !== 'GET') return;
-
-    // Ignore third-party tiles/APIs (handled by browser)
     if (!e.request.url.startsWith(self.location.origin)) return;
 
     e.respondWith(
-        fetch(e.request)
+        fetch(e.request, { cache: 'no-store' })
             .then((networkResponse) => {
                 if (networkResponse && networkResponse.status === 200) {
                     const responseClone = networkResponse.clone();
@@ -75,7 +73,6 @@ self.addEventListener('fetch', (e) => {
                 return networkResponse;
             })
             .catch(() => {
-                // If offline or network fails, load from local cache
                 return caches.match(e.request);
             })
     );
