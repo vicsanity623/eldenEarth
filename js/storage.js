@@ -649,7 +649,8 @@ let lastConflictCheck = {};
   function applyOfflineProgress() {
     const now = Date.now();
     const lastTick = state.lastTick || state.createdAt || now;
-    const elapsedSec = Math.max(0, (now - lastTick) / 1000);
+    const MAX_OFFLINE_SEC = 24 * 60 * 60; // 24 hours max offline accumulation
+    const elapsedSec = Math.min(MAX_OFFLINE_SEC, Math.max(0, (now - lastTick) / 1000));
     
     const earned = elapsedSec * totalRate();
     

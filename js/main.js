@@ -800,10 +800,11 @@
     let lastTickTime = Date.now();
     setInterval(() => {
       if (document.hidden) return; // Sleep income ticker calculations when app is minimized
+      if (typeof Store !== "undefined" && !Store.isSessionActive()) return; // Session paused, stop earning
 
       if (typeof Citadels !== "undefined") Citadels.checkCapsuleUnlock();
       const now = Date.now();
-      const deltaSec = (now - lastTickTime) / 1000;
+      const deltaSec = Math.min(60, (now - lastTickTime) / 1000); // Cap tick at 60s max
       lastTickTime = now;
 
       const state = Store.get();
