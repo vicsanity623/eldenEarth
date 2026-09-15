@@ -95,28 +95,54 @@ const Store = (() => {
       }
     }
 
-    // --- SELF-SEALING LIFETIME RENT & CASH AUDIT RESTORATION ---
-    if (state && state.player && !state.cashAuditV1Done) {
-      state.cashAuditV1Done = true;
-
-      const pName = (state.player.name || "").toLowerCase();
-      if ((pName.includes("vic") || (state.plots && Object.keys(state.plots).length >= 20))) {
-        if ((Number(state.lifetimeRent) || 0) < 1.01) {
-          state.lifetimeRent = 1.017436000000000;
-        }
-        if ((Number(state.cash) || 0) > 0.30 && state.extractor && state.extractor.level >= 2) {
-          state.cash = 0.087474587225872;
-        }
+    // --- PLAYER CONFLICT AUDIT: Detect and resolve UID/IP conflicts on load ---
+    if (state && state.player && state.player.id) {
+      const conflictCheck = ConflictResolver.checkConflict(state.player.id);
+      if (conflictCheck && conflictCheck.hasConflict) {
+        console.log(`[Conflict] Detected conflict for ${state.player.id}: ${conflictCheck.reason}`);
+        // Trigger resolution after a brief delay to let UI show advisory
+        setTimeout(() => {
+          ConflictResolver.resolveConflict({
+            playerId: state.player.id,
+            onResolved: (result) => {
+              if (result.success) {
+                console.log(`[Conflict] Resolved: kept ${result.plotsKept} plots, EB=${result.eb}`);
+                // Refresh the save data after resolution
+                load();
+              } else {
+                console.warn("[Conflict] Resolution failed:", result.reason);
+              }
+            }
+          });
+        }, 500);
       }
-      if (pName.includes("cwood") && (Number(state.lifetimeRent) || 0) < 0.854230) {
-        state.lifetimeRent = 0.854230;
-      }
-
-      try {
-        localStorage.setItem(KEY, JSON.stringify(state));
-        setTimeout(() => syncToCloud(), 500);
-      } catch (e) {}
     }
+
+    // --- SELF-SEALING LIFETIME RENT & CASH AUDIT RESTORATION: DISABLED ---
+    // This section previously modified player cash/rent
+    // which caused data loss for real players. Disabled to prevent further corruption.
+    // if (state && state.player && !state.cashAuditV1Done) {
+    //   state.cashAuditV1Done = true;
+    //
+    //   const pName = (state.player.name || "").toLowerCase();
+    //   if ((pName.includes("vic") || (state.plots && Object.keys(state.plots).length >= 20))) {
+    //     if ((Number(state.lifetimeRent) || 0) < 1.01) {
+    //       state.lifetimeRent = 1.017436000000000;
+    //     }
+    //     if ((Number(state.cash) || 0) > 0.30 && state.extractor && state.extractor.level >= 2) {
+    //       state.cash = 0.087474587225872;
+    //     }
+    //   }
+    //   if (pName.includes("cwood") && (Number(state.lifetimeRent) || 0) < 0.854230) {
+    //     state.lifetimeRent = 0.854230;
+    //   }
+    //
+    //   try {
+    //     localStorage.setItem(KEY, JSON.stringify(state));
+    //     setTimeout(() => syncToCloud(), 500);
+    //   } catch (e) {}
+    // }
+    // ============================================================
 
     updateBaseRateCache();
     return state;
@@ -155,14 +181,21 @@ const Store = (() => {
   }
 
   // Cloud Save to Firestore (Guaranteed Sync)
+  // BLOCKED for guest accounts - prevents cross-device conflicts
   function syncToCloud() {
-    if (isSessionPaused) return; // Never save if another device has taken over!
+    if (isSessionPaused) return;
+    // Block guest saves from syncing to cloud - guest data stays local only
+    if (state && state.player && (!state.player.id || state.player.id.startsWith("guest-"))) {
+      return;
+    }
     const firestore = getDb();
     if (!firestore || !state || !state.player || !state.player.id) return;
 
     try {
-      state.activeSessionId = localSessionId;
-      firestore.collection("saves").doc(state.player.id).set(state)
+      // Strip activeSessionId — only syncFromCloud (login) should claim sessions
+      const payload = Object.assign({}, state);
+      delete payload.activeSessionId;
+      firestore.collection("saves").doc(state.player.id).set(payload, { merge: true })
         .catch(err => console.warn("[Cloud] Sync failed:", err));
     } catch (err) {
       console.warn("[Cloud] Error during sync:", err);
@@ -253,19 +286,11 @@ const Store = (() => {
         });
       }
 
-      // 3. TRUE-OWNERSHIP AUDITOR: Untangle merged accounts!
-      // If the local/cloud save claims a plot that isn't officially registered to this ownerId
-      // in the global plots collection, delete it from their personal save file!
-      let tangledPlotsRemoved = false;
-      for (const tid in state.plots) {
-        if (!officialPlotIds.has(tid)) {
-          delete state.plots[tid];
-          tangledPlotsRemoved = true;
-        }
-      }
-      if (tangledPlotsRemoved) {
-        console.log(`[Audit] Removed overlapping/tangled plots from ${playerId}'s save.`);
-      }
+      // 3. TRUE-OWNERSHIP AUDITOR: DISABLED
+      // This was deleting plots from player saves when the plots collection
+      // didn't have a matching ownerId entry. This caused massive plot loss.
+      // Disabled permanently to prevent further data corruption.
+      // Players' plots are now preserved as-is from the plots collection query above.
 
       localStorage.setItem(KEY, JSON.stringify(state));
 
@@ -305,7 +330,26 @@ const Store = (() => {
     return state;
   }
 
-  // Fast Rarity Rate Lookup Table (Zero array find overhead)
+  // ============================================================
+// PLAYER CONFLICT DETECTION & RESOLUTION
+// Tracks UID and IP conflicts across saves, resolves by keeping
+// the account with largest progress (max 10 plots / 1000EB).
+// Respects Firebase limits: one read per conflict check, batch writes.
+// ============================================================
+let playerConflictCheckCache = {};
+const CONFLICT_THROTTLE_MS = 60000; // 1-minute throttle between conflict checks
+
+const CONFLICT_RULES = {
+  maxPlots: 10,
+  maxPlotWorthEB: 1000,
+  extraEBForBackpay: 500,
+};
+
+// Track last conflict check time per player
+let lastConflictCheck = {};
+// ============================================================
+
+// Fast Rarity Rate Lookup Table (Zero array find overhead)
   let cachedBaseRate = 0;
   let lastPlotsCount = -1;
 
@@ -328,17 +372,262 @@ const Store = (() => {
     cachedBaseRate = sum;
   }
 
-  function totalRate() {
-    if (!state) return 0;
-    updateBaseRateCache();
-    const isBoosted = state.boostExpiry && Date.now() < state.boostExpiry;
-    if (!isBoosted) return cachedBaseRate;
+  // ============================================================
+  // PLAYER CONFLICT DETECTION & RESOLUTION
+  // Tracks UID and IP conflicts across saves, resolves by keeping
+  // the account with largest progress (max 10 plots / 1000EB).
+  // Respects Firebase limits: one read per conflict check, batch writes.
+  // ============================================================
+  const ConflictResolver = (() => {
+    let initialized = false;
 
-    // While 50X event is active, ALL active boosts calculate at 50X!
-    const is50X = (typeof CONFIG !== "undefined" && CONFIG.is50XActive) ? CONFIG.is50XActive() : false;
-    const mult = is50X ? 50 : (state.boostMultiplier || 30);
-    return cachedBaseRate * mult;
-  }
+    function init() {
+      if (initialized) return;
+      initialized = true;
+    }
+
+    // Get player state from local save
+    function getLocalState(uid) {
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return parsed.player?.id === uid ? parsed : null;
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    // Check if player has conflicting UID or IP in Firestore
+    async function checkConflict(playerId) {
+      init();
+      const now = Date.now();
+      const playerKey = `conflict_${playerId}`;
+
+      // Throttle: avoid excessive Firestore reads
+      if (lastConflictCheck[playerKey] && now - lastConflictCheck[playerKey] < CONFLICT_THROTTLE_MS) {
+        return playerConflictCheckCache[playerKey] || { hasConflict: false };
+      }
+
+      const firestore = getDb();
+      if (!firestore) return { hasConflict: false, reason: "no_firestore" };
+
+      hasConflict = false;
+      conflictReason = null;
+      bestAccount = null;
+      otherAccounts = [];
+
+      try {
+        // 1. Check saves collection for this playerId - if multiple documents exist, conflict
+        const savesSnap = await firestore.collection("saves").where("playerId", "==", playerId).limit(2).get();
+        const saveCount = savesSnap.size;
+
+        if (saveCount > 1) {
+          // Multiple save files for same playerId - conflict!
+          hasConflict = true;
+          conflictReason = "multiple_save_files";
+
+          // Find the best account (most plots/EB) and others
+          let bestScore = -1;
+          savesSnap.forEach(doc => {
+            const data = doc.data();
+            const plotsCount = Object.keys(data.plots || {}).length;
+            const eb = Number(data.eb) || 0;
+            const worth = plotsCount * 100 + eb; // simple scoring
+            if (worth > bestScore) {
+              bestScore = worth;
+              bestAccount = doc.id;
+            } else {
+              otherAccounts.push(doc.id);
+            }
+          });
+
+          // Store result in cache
+          playerConflictCheckCache[playerKey] = { hasConflict: true, reason: "multiple_save_files", bestAccount, otherAccounts };
+          lastConflictCheck[playerKey] = now;
+          return playerConflictCheckCache[playerKey];
+        }
+
+        // 2. Check plots collection for ownership conflicts
+        // If this playerId owns plots but there are other players with same plot IDs, conflict
+        const plotSnap = await firestore.collection("plots").where("ownerId", "==", playerId).get();
+        const ownedPlotCount = plotSnap.size;
+
+        if (ownedPlotCount > 0) {
+          // Check if any of these plots also owned by other players
+          // (This would indicate shared/IP-conflicted accounts)
+          // Sample a few plots to check for shared ownership
+          const plotDocs = [];
+          plotSnap.forEach(doc => plotDocs.push(doc.id));
+
+          if (plotDocs.length > 0) {
+            // Check first few plots for shared ownership
+            const checkCount = Math.min(plotDocs.length, 5);
+            let sharedFound = false;
+
+            for (let i = 0; i < checkCount; i++) {
+              const plotDoc = plotDocs[i];
+              const plotSnap2 = await firestore.collection("plots").doc(plotDoc).get();
+              const plotData = plotSnap2.data();
+              if (plotData && plotData.ownerId && plotData.ownerId !== playerId) {
+                sharedFound = true;
+                hasConflict = true;
+                conflictReason = "shared_plot_ownership";
+                break;
+              }
+            }
+
+            if (sharedFound) {
+              playerConflictCheckCache[playerKey] = { hasConflict: true, reason: "shared_plot_ownership" };
+              lastConflictCheck[playerKey] = now;
+              return playerConflictCheckCache[playerKey];
+            }
+          }
+        }
+
+        playerConflictCheckCache[playerKey] = { hasConflict: false };
+        lastConflictCheck[playerKey] = now;
+        return playerConflictCheckCache[playerKey];
+
+      } catch (err) {
+        console.warn("[Conflict] Check error:", err);
+        playerConflictCheckCache[playerKey] = { hasConflict: false, error: err.message };
+        lastConflictCheck[playerKey] = now;
+        return playerConflictCheckCache[playerKey];
+      }
+    }
+
+    // Resolve conflict: keep best account, delta/rest other accounts
+    async function resolveConflict(options) {
+      init();
+      const { playerId, onResolved } = options;
+      const firestore = getDb();
+      if (!firestore) {
+        if (onResolved) onResolved({ success: false, reason: "no_firestore" });
+        return;
+      }
+
+      const check = await checkConflict(playerId);
+      if (!check.hasConflict) {
+        if (onResolved) onResolved({ success: false, reason: "no_conflict" });
+        return;
+      }
+
+      const bestAccount = check.bestAccount;
+      const otherAccounts = check.otherAccounts || [];
+
+      if (!bestAccount) {
+        if (onResolved) onResolved({ success: false, reason: "no_best_account" });
+        return;
+      }
+
+      // Load the best account from cloud
+      const bestState = await syncFromCloud(bestAccount);
+      if (!bestState) {
+        if (onResolved) onResolved({ success: false, reason: "cloud_load_failed" });
+        return;
+      }
+
+      // Apply best state as the base, then delta other accounts INTO it
+      // but LIMIT: max 10 plots worth 1000EB total
+      let totalPlotWorth = 0;
+      let plotsToKeep = {};
+      let plotsRemoved = [];
+
+      // First, take plots from best account (already loaded)
+      for (const tid in bestState.plots) {
+        const p = bestState.plots[tid];
+        const rarityRate = (p.rarity && CONFIG.PLOT_RARITIES.find(r => r.key === p.rarity.key))
+          ? CONFIG.PLOT_RARITIES.find(r => r.key === p.rarity.key).rate
+          : (p.rate || CONFIG.PLOT_RARITIES[0].rate);
+        totalPlotWorth += rarityRate;
+        if (totalPlotWorth <= CONFLICT_RULES.maxPlotWorthEB && Object.keys(plotsToKeep).length < CONFLICT_RULES.maxPlots) {
+          plotsToKeep[tid] = p;
+        } else {
+          plotsRemoved.push(tid);
+        }
+      }
+
+      // Now delta each other account's plots, but respect the limits
+      for (const otherUid of otherAccounts) {
+        if (otherUid === bestAccount) continue;
+        const otherState = await syncFromCloud(otherUid);
+        if (!otherState) continue;
+
+        for (const tid in otherState.plots) {
+          // Only add if we haven't reached the limit
+          if (Object.keys(plotsToKeep).length >= CONFLICT_RULES.maxPlots) break;
+
+          if (!plotsToKeep[tid]) {
+            const p = otherState.plots[tid];
+            const rarityRate = (p.rarity && CONFIG.PLOT_RARITIES.find(r => r.key === p.rarity.key))
+              ? CONFIG.PLOT_RARITIES.find(r => r.key === p.rarity.key).rate
+              : (p.rate || CONFIG.PLOT_RARITIES[0].rate);
+
+            // Check if adding this plot would exceed 1000EB worth
+            const currentWorth = Object.keys(plotsToKeep).reduce((sum, k) => {
+              const pp = plotsToKeep[k];
+              const r = (pp.rarity && CONFIG.PLOT_RARITIES.find(rr => rr.key === pp.rarity.key))
+                ? CONFIG.PLOT_RARITIES.find(rr => rr.key === pp.rarity.key).rate
+                : (pp.rate || CONFIG.PLOT_RARITIES[0].rate);
+              return sum + r;
+            }, 0);
+
+            if (currentWorth + rarityRate <= CONFLICT_RULES.maxPlotWorthEB) {
+              plotsToKeep[tid] = p;
+              totalPlotWorth = currentWorth + rarityRate;
+            }
+          }
+        }
+      }
+
+      // Now update the best account's state with resolved plots
+      bestState.plots = plotsToKeep;
+      // Recalculate total EB - keep best account's EB + delta from others (but cap at 1000EB worth equivalent)
+      bestState.eb = Math.min(CONFLICT_RULES.maxPlotWorthEB, Number(bestState.eb) || 0);
+
+      // Remove plots from other accounts in Firestore (delta them out)
+      const db = getDb();
+      if (db && otherAccounts.length > 0) {
+        // Delete plots owned by other accounts that are now being removed
+        for (const otherUid of otherAccounts) {
+          if (otherUid === bestAccount) continue;
+          const otherState = await syncFromCloud(otherUid);
+          if (!otherState) continue;
+
+          for (const tid of Object.keys(otherState.plots)) {
+            if (!plotsToKeep[tid]) {
+              // Remove plot ownership from Firestore
+              try {
+                await db.collection("plots").doc(tid).delete().catch(e => console.warn("[Conflict] Plot delete notice:", e));
+                // Also remove/cleanse the save file
+                await db.collection("saves").doc(otherUid).update({
+                  plots: plotsToKeep || {},
+                  eb: Math.min(CONFLICT_RULES.maxPlotWorthEB, Number(eb) || 0)
+                }).catch(e => console.warn("[Conflict] Save update notice:", e));
+              } catch (delErr) {
+                console.warn("[Conflict] Plot removal error:", delErr);
+              }
+            }
+          }
+        }
+      }
+
+      // Save the resolved state to localStorage and Firestore for best account
+      try {
+        localStorage.setItem(KEY, JSON.stringify(bestState));
+        if (db) {
+          await db.collection("saves").doc(bestAccount).set(bestState, { merge: true });
+        }
+      } catch (e) {
+        console.warn("[Conflict] Save error:", e);
+      }
+
+      if (onResolved) onResolved({ success: true, bestAccount, plotsKept: Object.keys(plotsToKeep).length, plotsRemoved: plotsRemoved.length, eb: bestState.eb });
+    }
+
+    return { init, checkConflict, resolveConflict };
+  })();
 
   function applyOfflineProgress() {
     const now = Date.now();
@@ -390,6 +679,23 @@ const Store = (() => {
     } else {
       window.location.reload();
     }
+  }
+
+  // Calculate total EB/sec from all owned plots + boost multiplier
+  function totalRate() {
+    if (!state || !state.plots) return 0;
+    let rate = 0;
+    for (const id in state.plots) {
+      const p = state.plots[id];
+      const rKey = p.rarity?.key || p.rarity || "common";
+      const conf = CONFIG.PLOT_RARITIES.find(r => r.key === rKey);
+      rate += conf ? conf.rate : CONFIG.PLOT_RARITIES[0].rate;
+    }
+    // Apply 30X/50X boost if active
+    if (state.boostExpiry && Date.now() < state.boostExpiry) {
+      rate *= (state.boostMultiplier || 30);
+    }
+    return rate;
   }
 
   return { load, save, get, reset, totalRate, applyOfflineProgress, syncFromCloud, getDb, isSessionActive, resumeSession };

@@ -231,12 +231,10 @@
     }
     if (editNameBtn) editNameBtn.style.display = isOtherPlayer ? "none" : "inline-flex";
 
-    // Hide "Sign in with Google" button for authenticated Google players; only show for guests
+    // Hide "Sign in with Google" button — Google sign-in only, no guest mode
     const googleLinkSection = el("info-google-link-section");
     if (googleLinkSection) {
-      const fbUser = (typeof firebase !== "undefined" && firebase.auth) ? firebase.auth().currentUser : null;
-      const isGuest = fbUser ? fbUser.isAnonymous : (!state.player?.id || state.player.id.startsWith("guest-"));
-      googleLinkSection.style.display = isGuest ? "block" : "none";
+      googleLinkSection.style.display = "none";
     }
 
     // Initial Rent Display (Shows Lifetime Accrued Rent, NOT spendable balance)
@@ -1724,17 +1722,16 @@
     document.querySelector(".player-chip")?.addEventListener("click", openPlayerInfo);
     // Wire up Guest "Sign in with Google" button in Player Info Modal
     document.getElementById("google-link-btn")?.addEventListener("click", () => {
-      closeModal("player-info-modal");
-      const signinScreen = document.getElementById("signin-screen");
-      if (signinScreen) {
-        // Force the sign-in screen to the absolute front
-        signinScreen.classList.remove("hidden");
-        signinScreen.style.display = "flex";
-        signinScreen.style.position = "fixed";
-        signinScreen.style.zIndex = "9999999";
-        signinScreen.style.opacity = "1";
-        console.log("[Auth] Re-opening Sign-In Screen for Guest Upgrade");
+      // Wipe all guest data from localStorage before signing in with Google
+      console.log("[Auth] Wiping guest data before Google sign-in...");
+      localStorage.removeItem("eldenEarth.save.v1");
+      localStorage.removeItem("eldenEarth.guestModeUsed");
+      // Sign out of Firebase anonymous session to force fresh Google auth
+      if (typeof firebase !== "undefined" && firebase.auth && firebase.auth().currentUser) {
+        firebase.auth().signOut();
       }
+      // Force page reload to show clean sign-in screen
+      window.location.reload();
     });
 
     el("earn-btn").addEventListener("click", () => {
@@ -1745,6 +1742,19 @@
       }
       openModal("wheel-modal");
       updateTopbar();
+      // Update spin button text for free spins
+      const st = Store.get();
+      const freeSpinsLeft = Number(st.player.freeSpins) || 0;
+      const noDiamondCost = st.player.freeSpinsNoDiamondCost;
+      if (freeSpinsLeft > 0 && noDiamondCost) {
+        spinBtn.innerHTML = `FREE SPINS REMAINING ${freeSpinsLeft}`;
+        const wheelSub = el("wheel-sub");
+        if (wheelSub) wheelSub.textContent = `Free spins — no diamonds needed!`;
+      } else {
+        spinBtn.innerHTML = `Spin (2 <span class="hud-gem-icon"></span>)`;
+        const wheelSub = el("wheel-sub");
+        if (wheelSub) wheelSub.innerHTML = `2 <span class="hud-gem-icon"></span> per spin`;
+      }
     });
     el("land-btn").addEventListener("click", () => { updateLandModal(); openModal("land-modal"); });
 
@@ -1842,18 +1852,37 @@
 
     el("spin-btn").addEventListener("click", () => {
       const state = Store.get();
-      if (state.player.id && state.player.id.startsWith("guest-")) {
-        showToast("YOU ARE A GUEST IN THIS REALM. Sign in with Google to spin the wheel.");
-        return;
-      }
-      const cost = CONFIG.SPIN_COST_DIAMONDS || 1;
 
-      if ((Number(state.diamonds) || 0) < cost) {
-        showToast("Not enough diamonds — go find some!");
-        return;
-      }
+      // --- EA BUILD: FREE SPINS (NO DIAMOND COST) ---
+      const freeSpinsRemaining = Number(state.player.freeSpins) || 0;
+      const hasFreeSpins = freeSpinsRemaining > 0 && state.player.freeSpinsNoDiamondCost;
 
-      state.diamonds = Math.max(0, (Number(state.diamonds) || 0) - cost);
+      if (hasFreeSpins) {
+        // Use a free spin - no diamond cost
+        state.player.freeSpins = freeSpinsRemaining - 1;
+        if (state.player.freeSpins <= 0) {
+          state.player.freeSpinsNoDiamondCost = false;
+        }
+        // Update button text with remaining count
+        const spinBtnEl = el("spin-btn");
+        const wheelSubEl = el("wheel-sub");
+        if (state.player.freeSpins > 0) {
+          if (spinBtnEl) spinBtnEl.innerHTML = `FREE SPINS REMAINING ${state.player.freeSpins}`;
+          if (wheelSubEl) wheelSubEl.textContent = `Free spins — no diamonds needed!`;
+        } else {
+          if (spinBtnEl) spinBtnEl.innerHTML = `Spin (2 <span class="hud-gem-icon"></span>)`;
+          if (wheelSubEl) wheelSubEl.innerHTML = `2 <span class="hud-gem-icon"></span> per spin`;
+        }
+        showToast(`Free Spin used! (${state.player.freeSpins} remaining)`);
+      } else {
+        // Normal diamond cost
+        const cost = CONFIG.SPIN_COST_DIAMONDS || 1;
+        if ((Number(state.diamonds) || 0) < cost) {
+          showToast("Not enough diamonds — go find some!");
+          return;
+        }
+        state.diamonds = Math.max(0, (Number(state.diamonds) || 0) - cost);
+      }
       Store.save(true); // Forces IMMEDIATE lock to disk & Google Cloud before wheel turns!
       updateTopbar();
       el("spin-btn").disabled = true;
@@ -1913,10 +1942,88 @@
       });
     });
 
-    el("reset-btn").addEventListener("click", () => {
-      if (confirm("This wipes all Elden Earth progress on this device. Continue?")) {
-        Store.reset();
-        location.reload();
+    // --- LOG OUT BUTTON ---
+    el("logout-btn")?.addEventListener("click", () => {
+      if (confirm("Log out of Elden Earth?")) {
+        if (typeof firebase !== "undefined" && firebase.auth) {
+          firebase.auth().signOut();
+        }
+        localStorage.removeItem("eldenEarth.save.v1");
+        window.location.reload();
+      }
+    });
+
+    // --- DELETE ACCOUNT PERMANENTLY ---
+    el("delete-account-btn")?.addEventListener("click", async () => {
+      if (!confirm("DELETE your account PERMANENTLY? This cannot be undone. All your data will be erased from Firebase.")) return;
+      if (!confirm("Are you absolutely sure? Your plots, balance, and progress will be gone forever.")) return;
+
+      try {
+        const user = firebase.auth().currentUser;
+        if (!user) {
+          showToast("No user logged in.");
+          return;
+        }
+        const uid = user.uid;
+        const db = Store.getDb();
+
+        // Reauthenticate with Google (required for account deletion)
+        showToast("Reauthenticating... please sign in again to confirm deletion.");
+        const provider = new firebase.auth.GoogleAuthProvider();
+        try {
+          await user.reauthenticateWithPopup(provider);
+        } catch (reauthErr) {
+          showToast("Reauthentication cancelled — account not deleted.");
+          return;
+        }
+
+        showToast("Deleting account data...");
+
+        // 1. Delete all Firestore data in parallel (fastest wipe)
+        if (db) {
+          const deletePromises = [];
+          const userCollections = ["saves", "plots", "presence", "dividends", "usernames", "avatar_reviews"];
+          for (const col of userCollections) {
+            deletePromises.push(db.collection(col).doc(uid).delete().catch(() => {}));
+          }
+          // Delete citadels owned by this user
+          try {
+            const citadelSnap = await db.collection("citadels").where("creatorId", "==", uid).get();
+            citadelSnap.forEach(doc => deletePromises.push(doc.ref.delete().catch(() => {})));
+          } catch (e) {}
+          await Promise.all(deletePromises);
+        }
+
+        // 2. Delete Firebase Auth account (must be last)
+        await user.delete();
+        console.log("[Auth] Account deleted:", uid);
+
+        // 3. Wipe ALL local storage for this game
+        localStorage.removeItem("eldenEarth.save.v1");
+        localStorage.removeItem("eldenEarth.guestModeUsed");
+        localStorage.removeItem("elden_sess_token");
+
+        // 4. Clear IndexedDB (Firestore persistence cache)
+        try {
+          const dbs = await indexedDB.databases();
+          for (const dbInfo of dbs) {
+            if (dbInfo.name) indexedDB.deleteDatabase(dbInfo.name);
+          }
+        } catch (e) {}
+
+        // 5. Clear sessionStorage
+        try { sessionStorage.clear(); } catch (e) {}
+
+        showToast("Account permanently deleted. Redirecting...");
+        // 6. Instant redirect — no delay
+        window.location.replace(window.location.href.split("?")[0]);
+      } catch (err) {
+        console.error("[Auth] Delete account error:", err);
+        if (err.code === "auth/requires-recent-login") {
+          showToast("Session expired — please log out and log back in, then try again.");
+        } else {
+          showToast("Failed to delete account: " + err.message);
+        }
       }
     });
   }

@@ -8,3 +8,4 @@ venvaxiom
 .venv
 package-lock.json
 node_modules/
+firestore.rules

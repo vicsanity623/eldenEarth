@@ -40,12 +40,12 @@ const WeeklyPool = (() => {
     let totalGlobalRent = 0;
     let globalRateSec = 0;
 
-    // Fast Rarity Rate Lookup Table
+    // Fast Rarity Rate Lookup Table (nerfed by 1/4)
     const RATE_MAP = {
-      common: 0.0000000011,
-      rare: 0.0000000016,
-      epic: 0.0000000022,
-      legendary: 0.0000000044
+      common: 0.0000000004,
+      rare: 0.000000000675,
+      epic: 0.0000000011,
+      legendary: 0.0000000022
     };
     // Calculate global lifetime rent AND global velocity
     // --- 14-Day (2-Week) Fiscal Period Reset Engine ---

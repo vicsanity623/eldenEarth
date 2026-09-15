@@ -1004,6 +1004,49 @@ html,body{
   color: #ffffff;
 }
 
+/* ---------- Fullscreen Conflict Advisory Modal ---------- */
+.modal-fullscreen{
+  position:fixed; inset:0; z-index:99998;
+  background:rgba(0,0,0,0.85);
+  display:flex; align-items:center; justify-content:center;
+  padding:24px;
+}
+.modal-fullscreen.hidden{ display:none !important; }
+.modal-fullscreen-card{
+  background:linear-gradient(180deg, var(--panel) 0%, var(--ink-2) 100%);
+  border:1px solid var(--line);
+  border-radius:14px;
+  width:100%; max-width:400px;
+  max-height:90vh; overflow-y:auto;
+  padding:32px 24px;
+  text-align:left;
+}
+.modal-fullscreen-header{
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;
+}
+.modal-fullscreen-icon{
+  font-size:32px; color:var(--ruby);
+}
+.modal-fullscreen-header h2{
+  font-family:var(--font-display);
+  font-size:20px; color:var(--gold-hi); margin:0;
+}
+.modal-fullscreen-body{
+  color:var(--parchment); font-size:14px; line-height:1.6; margin-bottom:24px;
+}
+.modal-fullscreen-body ul{
+  margin:0 0 16px 20px; padding:0;
+}
+.modal-fullscreen-body li{
+  margin-bottom:8px; color:var(--text-dim);
+}
+.modal-fullscreen-footer{
+  display:flex; justify-content:flex-end; gap:12px; margin-top:16px;
+}
+.modal-close-advisory{
+  width:100%; padding:12px 24px; font-size:14px; font-weight:700;
+}
+
 /* ---------- Player Info Modal ---------- */
 .player-info-card {
   text-align: left;

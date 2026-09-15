@@ -69,6 +69,11 @@ const Leaderboard = (() => {
       } catch (e) {}
     }
 
+    // ⛔ Hard Block: North Korea Excluded from all Titles & Presidencies
+    if (c.includes("north korea") || c.includes("dprk") || c.includes("corée du nord") || c === "kp") {
+      return "⛔ Restricted Territory";
+    }
+
     return rawCountry ? `${rawCountry} 🌐` : "International Realm 🌐";
   }
 
